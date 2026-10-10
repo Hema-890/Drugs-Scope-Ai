@@ -160,8 +160,12 @@ export function App() {
 
         {/* Main Content Area */}
         <main
-          className={`flex-1 transition-all duration-300 p-4 md:p-8 max-w-7xl mx-auto w-full ${
-            sidebarCollapsed ? 'ml-16' : 'ml-64'
+          className={`transition-all duration-300 w-full ${
+            activeModule === 'landing'
+              ? 'p-0 min-h-screen'
+              : activeModule === 'molecular-lab'
+              ? 'p-4 lg:p-6 max-w-[1920px] mx-auto'
+              : `flex-1 p-4 md:p-8 max-w-7xl mx-auto ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`
           }`}
         >
           {renderActiveModule()}

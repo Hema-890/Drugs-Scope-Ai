@@ -1,16 +1,14 @@
 import React from 'react';
+import { BrandLogo } from './BrandLogo';
 import { DatasetMode, UserProfile } from '../../types';
 import {
-  Activity,
-  CheckCircle2,
+  Bell,
+  Bookmark,
   Command,
-  Database,
   Mic,
-  Moon,
   Search,
-  Shield,
-  Sliders,
-  Sparkles
+  Sparkles,
+  User
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -32,112 +30,181 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeModule,
   onNavigate
 }) => {
+  const isLanding = activeModule === 'landing';
+
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#101827]/90 backdrop-blur-md border-b border-white/10 px-4 lg:px-6 h-16 flex items-center justify-between">
-      {/* Brand & Wordmark */}
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-40 w-full h-[68px] bg-[#070B14]/95 backdrop-blur-xl border-b border-white/[0.08] px-4 lg:px-8 flex items-center justify-between transition-all">
+      {/* Left: Brand Wordmark & Logo */}
+      <div className="flex items-center gap-6">
         <button
           onClick={() => onNavigate('landing')}
-          className="flex items-center gap-2.5 group text-left focus:outline-none"
+          className="focus:outline-none cursor-pointer hover:opacity-95 transition-opacity"
         >
-          {/* Brand Symbol: Molecular geometry + Scope Lens */}
-          <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-[#101827] to-[#1D2A3E] border border-[#37D6E6]/40 flex items-center justify-center shadow-lg group-hover:border-[#37D6E6] transition-all">
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 100 100"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <circle cx="50" cy="50" r="42" stroke="#37D6E6" strokeWidth="6" strokeDasharray="6 4" />
-              <circle cx="34" cy="36" r="12" fill="#37D6E6" />
-              <circle cx="66" cy="36" r="12" fill="#9079F7" />
-              <circle cx="50" cy="68" r="12" fill="#32C8B7" />
-              <line x1="34" y1="36" x2="66" y2="36" stroke="#F4F7FB" strokeWidth="4" />
-              <line x1="34" y1="36" x2="50" y2="68" stroke="#F4F7FB" strokeWidth="4" />
-              <line x1="66" y1="36" x2="50" y2="68" stroke="#F4F7FB" strokeWidth="4" />
-              <circle cx="50" cy="50" r="22" stroke="#EFB85A" strokeWidth="3" />
-            </svg>
-            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#32C8B7] ring-2 ring-[#070B14]" />
-          </div>
+          <BrandLogo size="md" />
+        </button>
+      </div>
 
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-display font-bold text-base tracking-wide text-[#F4F7FB]">
-                DRUG SCOPE <span className="text-[#37D6E6]">AI</span>
-              </span>
-              <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 bg-[#37D6E6]/10 text-[#37D6E6] rounded border border-[#37D6E6]/30">
-                v4.0
+      {/* Center Navigation Links (Matching Image 1 & 3) */}
+      {isLanding || activeModule === 'molecular-lab' ? (
+        <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
+          <button
+            onClick={() => onNavigate('landing')}
+            className={`relative py-1 transition-colors cursor-pointer ${
+              activeModule === 'landing' ? 'text-white font-semibold' : 'text-[#A6B5CB] hover:text-white'
+            }`}
+          >
+            Home
+            {activeModule === 'landing' && (
+              <span className="absolute bottom-[-16px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#24D8ED] shadow-[0_0_8px_#24D8ED]" />
+            )}
+          </button>
+          <button
+            onClick={() => onNavigate('medicine-explorer')}
+            className={`py-1 transition-colors cursor-pointer ${
+              (activeModule as string) === 'medicine-explorer' ? 'text-white font-semibold' : 'text-[#A6B5CB] hover:text-white'
+            }`}
+          >
+            Drug Intelligence
+          </button>
+          <button
+            onClick={() => onNavigate('interaction-review')}
+            className={`py-1 transition-colors cursor-pointer ${
+              (activeModule as string) === 'interaction-review' ? 'text-white font-semibold' : 'text-[#A6B5CB] hover:text-white'
+            }`}
+          >
+            Interaction Analysis
+          </button>
+          <button
+            onClick={() => onNavigate('molecular-lab')}
+            className={`relative py-1 transition-colors cursor-pointer ${
+              activeModule === 'molecular-lab' ? 'text-white font-semibold' : 'text-[#A6B5CB] hover:text-white'
+            }`}
+          >
+            3D Molecular Lab
+            {activeModule === 'molecular-lab' && (
+              <span className="absolute bottom-[-16px] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#24D8ED] shadow-[0_0_8px_#24D8ED]" />
+            )}
+          </button>
+          <button
+            onClick={() => onNavigate('command-center')}
+            className={`py-1 transition-colors cursor-pointer ${
+              (activeModule as string) === 'command-center' ? 'text-white font-semibold' : 'text-[#A6B5CB] hover:text-white'
+            }`}
+          >
+            Research Hub
+          </button>
+          <span className="py-1 text-[#71839E] cursor-not-allowed">
+            Pricing
+          </span>
+        </nav>
+      ) : (
+        /* Workspace Wide Global Search Bar (Matching Image 2) */
+        <div className="hidden md:flex items-center flex-1 max-w-2xl mx-8">
+          <button
+            onClick={onOpenCommandPalette}
+            className="w-full flex items-center justify-between px-4 py-2 rounded-full bg-[#111C2E]/80 border border-white/10 hover:border-[#24D8ED]/40 text-xs text-[#71839E] hover:text-[#A6B5CB] transition-all group shadow-inner"
+          >
+            <div className="flex items-center gap-2.5 truncate">
+              <Search className="w-4 h-4 text-[#71839E] group-hover:text-[#24D8ED] transition-colors" />
+              <span className="truncate">
+                Search drugs, targets, diseases, pathways, or ask a research question...
               </span>
             </div>
-            <p className="text-[10px] text-[#A7B5C9] hidden sm:block tracking-tight font-medium">
-              Autonomous Drug–Drug Adverse Interaction & Receptor Discovery
-            </p>
-          </div>
-        </button>
-      </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <kbd className="font-mono text-[10px] bg-white/[0.08] px-1.5 py-0.5 rounded text-[#A6B5CB] border border-white/5">
+                ⌘K
+              </kbd>
+            </div>
+          </button>
+        </div>
+      )}
 
-      {/* Global Quick Search & Voice Bar */}
-      <div className="hidden md:flex items-center gap-2 max-w-md w-full mx-4">
-        <button
-          onClick={onOpenCommandPalette}
-          className="flex-1 flex items-center justify-between px-3.5 py-1.5 rounded-lg bg-[#070B14]/80 border border-white/10 hover:border-[#37D6E6]/40 text-xs text-[#A7B5C9] transition-all group"
-        >
-          <div className="flex items-center gap-2">
-            <Search className="w-3.5 h-3.5 text-[#37D6E6] group-hover:scale-110 transition-transform" />
-            <span>Search drugs, targets (CYP2C9, VKORC1), PDBs...</span>
-          </div>
-          <kbd className="font-mono text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/70">
-            ⌘K
-          </kbd>
-        </button>
-
-        <button
-          onClick={onOpenVoiceModal}
-          title="Voice-Assisted Scientific Navigation"
-          className="p-2 rounded-lg bg-[#070B14]/80 border border-white/10 hover:border-[#37D6E6]/40 hover:text-[#37D6E6] text-[#A7B5C9] transition-all"
-        >
-          <Mic className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Right Controls: Dataset Mode Switcher & User Profile */}
-      <div className="flex items-center gap-3">
-        {/* Mode Selector */}
-        <div className="flex items-center bg-[#070B14] p-1 rounded-lg border border-white/10 text-xs">
-          {(['DEMO', 'RESEARCH', 'CLINICAL REVIEW'] as DatasetMode[]).map((m) => (
+      {/* Right Controls */}
+      <div className="flex items-center gap-4">
+        {isLanding || activeModule === 'molecular-lab' ? (
+          /* Public Header Actions (Matching Reference Images 1 & 3) */
+          <div className="flex items-center gap-3">
             <button
-              key={m}
-              onClick={() => onModeChange(m)}
-              className={`px-2.5 py-1 rounded font-medium text-[11px] transition-all ${
-                mode === m
-                  ? m === 'CLINICAL REVIEW'
-                    ? 'bg-[#F16D76]/20 text-[#F16D76] border border-[#F16D76]/40 font-semibold'
-                    : m === 'RESEARCH'
-                    ? 'bg-[#37D6E6]/20 text-[#37D6E6] border border-[#37D6E6]/40 font-semibold'
-                    : 'bg-[#9079F7]/20 text-[#9079F7] border border-[#9079F7]/40 font-semibold'
-                  : 'text-[#A7B5C9] hover:text-white'
-              }`}
+              onClick={onOpenCommandPalette}
+              className="hidden lg:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#111C2E]/60 border border-white/10 text-xs text-[#71839E] hover:text-white transition-colors"
             >
-              {m}
+              <Search className="w-3.5 h-3.5 text-[#71839E]" />
+              <span>Search drugs, targets...</span>
+              <kbd className="font-mono text-[9px] bg-white/10 px-1 py-0.2 rounded text-white/60">⌘K</kbd>
             </button>
-          ))}
-        </div>
 
-        {/* User Role Badge */}
-        <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-white/10">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#37D6E6] to-[#9079F7] p-0.5">
-            <div className="w-full h-full rounded-full bg-[#101827] flex items-center justify-center text-[11px] font-bold text-white">
-              ER
+            <button
+              onClick={onOpenVoiceModal}
+              title="Voice Search"
+              className="p-2 rounded-full text-[#A6B5CB] hover:text-[#24D8ED] hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              <Mic className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => onNavigate('command-center')}
+              className="text-xs font-semibold text-[#A6B5CB] hover:text-white transition-colors px-3 py-1.5 cursor-pointer"
+            >
+              Sign In
+            </button>
+
+            <button
+              onClick={() => onNavigate('command-center')}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#24D8ED] to-[#1E90FF] text-[#070B14] font-bold text-xs hover:opacity-95 transition-all shadow-[0_0_15px_rgba(36,216,237,0.4)] cursor-pointer"
+            >
+              Get Started
+            </button>
+          </div>
+        ) : (
+          /* Workspace Controls */
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onOpenVoiceModal}
+              title="Voice Search"
+              className="p-2 rounded-lg text-[#A6B5CB] hover:text-[#24D8ED] hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              <Mic className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => onNavigate('collaboration')}
+              title="Saved Research"
+              className="p-2 rounded-lg text-[#A6B5CB] hover:text-white hover:bg-white/5 transition-colors cursor-pointer relative"
+            >
+              <Bookmark className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => onNavigate('pharmacovigilance')}
+              title="Notifications"
+              className="p-2 rounded-lg text-[#A6B5CB] hover:text-white hover:bg-white/5 transition-colors cursor-pointer relative"
+            >
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#24D8ED] ring-2 ring-[#070B14]" />
+            </button>
+
+            {/* Profile Avatar (Dr. Sarah Chen, Principal Investigator) */}
+            <div className="flex items-center gap-2.5 pl-3 border-l border-white/10">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#24D8ED] to-[#9475FF] p-[1.5px] cursor-pointer">
+                <div className="w-full h-full rounded-full bg-[#111C2E] flex items-center justify-center text-xs font-bold text-white overflow-hidden">
+                  <img
+                    src="https://images.unsplash.com/photo-1594824813583-0570a256df29?w=100&auto=format&fit=crop&q=80"
+                    alt="Dr. Sarah Chen"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                  <span>SC</span>
+                </div>
+              </div>
+              <div className="hidden xl:block text-left">
+                <div className="text-xs font-semibold text-white leading-tight">Dr. Sarah Chen</div>
+                <div className="text-[10px] text-[#71839E] font-medium">Principal Investigator</div>
+              </div>
             </div>
           </div>
-          <div className="text-left text-xs">
-            <div className="font-semibold text-[#F4F7FB] flex items-center gap-1">
-              <span>Dr. E. Reed</span>
-              <CheckCircle2 className="w-3 h-3 text-[#32C8B7]" />
-            </div>
-            <div className="text-[10px] text-[#A7B5C9] capitalize font-mono">{user.role}</div>
-          </div>
-        </div>
+        )}
       </div>
     </header>
   );
