@@ -25,13 +25,16 @@ import { AuditProvenance } from './components/modules/AuditProvenance';
 import { EvidenceTimeMachine } from './components/differentiators/EvidenceTimeMachine';
 import { EvidenceGapAtlas } from './components/differentiators/EvidenceGapAtlas';
 import { MolecularStoryboard } from './components/differentiators/MolecularStoryboard';
+import { MedicineAnalysisWorkspace } from './components/modules/MedicineAnalysisWorkspace';
+import { AnalysisResultsDashboard } from './components/modules/AnalysisResultsDashboard';
+import { ScientificDossierReport } from './components/reports/ScientificDossierReport';
 import {
   getStoredMode,
   getStoredUser,
   recordAuditEvent,
   setStoredMode
 } from './services/storageService';
-import { BiologicalTarget, DatasetMode, Drug, ProteinStructure, UserProfile } from './types';
+import { AnalysisSession, BiologicalTarget, DatasetMode, Drug, ProteinStructure, UserProfile } from './types';
 
 export function App() {
   const [activeModule, setActiveModule] = useState<string>('landing');
@@ -45,6 +48,8 @@ export function App() {
   const [targetDrug, setTargetDrug] = useState<Drug | null>(null);
   const [targetPdbId, setTargetPdbId] = useState<string>('6WVR');
   const [targetBiologicalTarget, setTargetBiologicalTarget] = useState<BiologicalTarget | null>(null);
+  const [activeAnalysisSessionId, setActiveAnalysisSessionId] = useState<string | null>(null);
+  const [activeReportSession, setActiveReportSession] = useState<AnalysisSession | null>(null);
 
   const handleModeChange = (newMode: DatasetMode) => {
     setMode(newMode);
@@ -58,6 +63,7 @@ export function App() {
       if (itemData.genericName) setTargetDrug(itemData);
       if (itemData.pdbId) setTargetPdbId(itemData.pdbId);
       if (itemData.geneSymbol) setTargetBiologicalTarget(itemData);
+      if (itemData.sessionId) setActiveAnalysisSessionId(itemData.sessionId);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -68,6 +74,43 @@ export function App() {
         return <LandingPage onLaunch={(mod) => handleNavigate(mod)} />;
       case 'command-center':
         return <CommandCenter mode={mode} onNavigate={(mod) => handleNavigate(mod)} />;
+      case 'analyze':
+        return (
+          <MedicineAnalysisWorkspace
+            onAnalysisComplete={(sessionId) => {
+              setActiveAnalysisSessionId(sessionId);
+              setActiveModule('analysis-results');
+            }}
+            onNavigateToDrugDetail={(drug) => {
+              setTargetDrug(drug);
+              setActiveModule('medicine-explorer');
+            }}
+          />
+        );
+      case 'analysis-results':
+        return (
+          <AnalysisResultsDashboard
+            sessionId={activeAnalysisSessionId || 'DSA-ANL-DEMO'}
+            onBackToSearch={() => setActiveModule('analyze')}
+            onNavigateTo3DStructure={(pdbId) => {
+              setTargetPdbId(pdbId);
+              setActiveModule('molecular-lab');
+            }}
+            onViewReportDossier={(session) => {
+              setActiveReportSession(session);
+              setActiveModule('analysis-report');
+            }}
+          />
+        );
+      case 'analysis-report':
+        return activeReportSession ? (
+          <ScientificDossierReport
+            session={activeReportSession}
+            onBack={() => setActiveModule('analysis-results')}
+          />
+        ) : (
+          <CommandCenter mode={mode} onNavigate={(mod) => handleNavigate(mod)} />
+        );
       case 'medicine-explorer':
         return (
           <MedicineExplorer
@@ -165,6 +208,8 @@ export function App() {
               ? 'p-0 min-h-screen'
               : activeModule === 'molecular-lab'
               ? 'p-4 lg:p-6 max-w-[1920px] mx-auto'
+              : activeModule === 'analysis-report'
+              ? 'p-4 lg:p-8 max-w-5xl mx-auto'
               : `flex-1 p-4 md:p-8 max-w-7xl mx-auto ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`
           }`}
         >

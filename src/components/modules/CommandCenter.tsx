@@ -171,6 +171,32 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ mode, onNavigate }
         </div>
       </div>
 
+      {/* PRIMARY SECTION: ANALYZE MEDICINES LAUNCH ACTION (DRUG SCOPE 5.0) */}
+      <div className="bg-gradient-to-r from-[#111C2E] via-[#152238] to-[#111C2E] border border-[#24D8ED]/30 rounded-2xl p-5 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#24D8ED] animate-pulse" />
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+              Autonomous Medicine Analysis Workspace
+            </h2>
+          </div>
+          <p className="text-xs text-[#A6B5CB] max-w-2xl leading-relaxed">
+            Search multi-drug combinations, resolve RxCUIs, cross-reference CYP450 clearance competition, and generate interactive 3D relationship reports.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onNavigate('analyze')}
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#24D8ED] to-[#9475FF] text-[#070B14] font-bold text-xs hover:opacity-95 shadow-lg shadow-[#24D8ED]/20 flex items-center gap-2 cursor-pointer transition-all"
+          >
+            <Zap className="w-4 h-4 fill-current" />
+            <span>Analyze Medicines</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
       {/* 2. 4 METRIC KPI CARDS WITH SPARKLINES (Matching Reference Image 2) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map((kpi, idx) => (

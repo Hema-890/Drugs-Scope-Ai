@@ -175,3 +175,82 @@ export interface DataSourceStatus {
   rateLimitMax: number;
   license: string;
 }
+
+export type ExplanationMode = 'simple' | 'professional' | 'research';
+
+export interface AnalysisFinding {
+  id: string;
+  drugAId: string;
+  drugAName: string;
+  drugBId: string;
+  drugBName: string;
+  severity: 'Contraindicated' | 'Major' | 'Moderate' | 'Minor' | 'Theoretical';
+  evidenceStatus: 'Documented' | 'Predicted' | 'Simulated' | 'Uncertain' | 'Evidence Gap';
+  interactionType: string;
+  mechanism: string;
+  clinicalConsequence: string;
+  managementGuidance: string;
+  simpleExplanation: string;
+  professionalExplanation: string;
+  researchExplanation: string;
+  sources: Array<{
+    name: string;
+    type: string;
+    citation: string;
+    url?: string;
+  }>;
+  cypEnzymes: string[];
+  receptors: string[];
+  targetOverlap: string[];
+}
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  type: 'drug' | 'enzyme' | 'receptor' | 'pathway' | 'evidence';
+  color: string;
+  size: number;
+  sublabel?: string;
+  metadata?: any;
+  position?: [number, number, number];
+}
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
+  type: 'inhibits' | 'metabolizes' | 'binds' | 'conflicts' | 'supports';
+  color: string;
+  dashed?: boolean;
+}
+
+export interface AnalysisSession {
+  id: string;
+  title: string;
+  timestamp: string;
+  datasetMode: DatasetMode;
+  medications: Drug[];
+  clinicalContext?: {
+    dose?: string;
+    route?: string;
+    ageCategory?: string;
+    renalFunction?: string;
+    hepaticFunction?: string;
+  };
+  explanationMode: ExplanationMode;
+  findings: AnalysisFinding[];
+  graphData: {
+    nodes: GraphNode[];
+    edges: GraphEdge[];
+  };
+  status: 'completed' | 'analyzing' | 'error';
+  summary: {
+    totalInteractions: number;
+    contraindicatedCount: number;
+    majorCount: number;
+    moderateCount: number;
+    documentedEvidencePercent: number;
+    primaryRiskSummary: string;
+  };
+}

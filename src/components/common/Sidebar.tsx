@@ -34,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse
 }) => {
   const mainNav = [
+    { id: 'analyze', name: 'Analyze Medicines', icon: Zap, badge: 'Core' },
     { id: 'command-center', name: 'Research Command Center', icon: Activity },
     { id: 'medicine-explorer', name: 'Drug Search', icon: Compass },
     { id: 'interaction-review', name: 'Interaction Analysis', icon: GitCompare },
@@ -52,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'source-admin', name: 'API Access', icon: KeyRound }
   ];
 
-  if (activeModule === 'landing' || activeModule === 'molecular-lab') {
+  if (activeModule === 'landing' || activeModule === 'molecular-lab' || activeModule === 'analysis-report') {
     return null;
   }
 
