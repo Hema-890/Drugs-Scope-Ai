@@ -6,6 +6,7 @@ import pubmedHandler from './api/pubmed';
 import healthHandler from './api/health';
 import rxnormHandler from './api/rxnorm';
 import openalexHandler from './api/openalex';
+import speechHandler from './api/speech';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -37,6 +38,9 @@ export default defineConfig(({ mode }) => {
             }
             if (urlPath === '/api/openalex') {
               return openalexHandler(req, res);
+            }
+            if (urlPath === '/api/speech') {
+              return speechHandler(req, res);
             }
             next();
           });

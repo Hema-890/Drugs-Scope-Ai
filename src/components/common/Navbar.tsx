@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../../services/medicalTranslationEngine';
+import { speechEngine } from '../../services/speech/SpeechEngine';
 
 interface NavbarProps {
   mode: DatasetMode;
@@ -55,6 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const currentLang = (i18n.language?.slice(0, 2) as SupportedLanguage) || 'en';
 
   const handleLanguageChange = (langCode: SupportedLanguage) => {
+    speechEngine.handleLanguageChanged(langCode);
     i18n.changeLanguage(langCode);
   };
 

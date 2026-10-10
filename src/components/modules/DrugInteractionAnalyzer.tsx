@@ -58,6 +58,8 @@ import {
 import { jsPDF } from 'jspdf';
 import { EvidenceMolecularPanel } from './EvidenceMolecularPanel';
 import { deriveMolecularPayload } from '../../services/molecularContextEngine';
+import { ReportAudioPlayer, AudioReportSection } from '../audio/ReportAudioPlayer';
+import { speechEngine } from '../../services/speech/SpeechEngine';
 
 interface DrugInteractionAnalyzerProps {
   onNavigateTo3D?: (pdbId: string) => void;
@@ -100,9 +102,8 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
   // Multilingual display toggle: show translated vs original English evidence
   const [showOriginalEnglish, setShowOriginalEnglish] = useState(false);
 
-  // Audio Voice Engine State
-  const [audioState, setAudioState] = useState<AudioPlaybackState>(audioVoiceEngine.getState());
-  const [selectedAudioSection, setSelectedAudioSection] = useState<'all' | 'overview' | 'interactions' | 'risks' | 'warnings'>('all');
+  // Selected section for audio narration
+  const [selectedAudioSection, setSelectedAudioSection] = useState<AudioReportSection>('all');
 
   // Derive real 3D molecular payload matching current report context
   const currentDrugNames = useMemo(() => {
@@ -121,12 +122,10 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Subscribe to audioVoiceEngine events
+  // Stop audio on unmount
   useEffect(() => {
-    const unsubscribe = audioVoiceEngine.subscribe(setAudioState);
     return () => {
       audioVoiceEngine.stop();
-      unsubscribe();
     };
   }, []);
 
@@ -260,31 +259,7 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
     }
   };
 
-  const handlePlayAudio = () => {
-    const textToSpeak = generateSpokenSummaryText(selectedAudioSection);
-    if (!textToSpeak) return;
-    audioVoiceEngine.play(textToSpeak, currentLang, selectedAudioSection);
-  };
 
-  const handleToggleAudio = () => {
-    if (audioState.isPlaying) {
-      if (audioState.isPaused) {
-        audioVoiceEngine.resume();
-      } else {
-        audioVoiceEngine.pause();
-      }
-    } else {
-      handlePlayAudio();
-    }
-  };
-
-  const handleStopAudio = () => {
-    audioVoiceEngine.stop();
-  };
-
-  const handleSpeedChange = (speed: number) => {
-    audioVoiceEngine.setPlaybackRate(speed);
-  };
 
   const getSeverityBadgeClass = (sev: InteractionSeverity) => {
     switch (sev) {
@@ -427,7 +402,10 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
                   <button
                     key={lang.code}
                     type="button"
-                    onClick={() => i18n.changeLanguage(lang.code)}
+                    onClick={() => {
+                      speechEngine.handleLanguageChanged(lang.code);
+                      i18n.changeLanguage(lang.code);
+                    }}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                       isActive
                         ? 'bg-gradient-to-r from-[#24D8ED] to-[#9475FF] text-[#070B14] font-bold shadow-md shadow-[#24D8ED]/20'
@@ -614,105 +592,15 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
       </div>
 
       {/* ==================================================================== */}
-      {/* AUDIO VOICE ENGINE CONTROLS BAR (EN, TE, HI)                          */}
+      {/* CENTRALIZED REPORT AUDIO NARRATION ENGINE (EN, TE, HI)               */}
       {/* ==================================================================== */}
       {analysisOutput && (
-        <div className="glass-panel p-4 lg:p-5 rounded-2xl border border-white/10 bg-[#0B1120]/90 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl border ${audioState.isPlaying ? 'bg-[#37D6E6]/20 border-[#37D6E6] text-[#37D6E6]' : 'bg-white/5 border-white/10 text-white'}`}>
-              {audioState.isPlaying ? (
-                <Volume2 className="w-5 h-5 animate-pulse" />
-              ) : (
-                <VolumeX className="w-5 h-5 text-[#A7B5C9]" />
-              )}
-            </div>
-
-            <div>
-              <div className="text-xs font-bold text-white flex items-center gap-2">
-                <span>
-                  {currentLang === 'te'
-                    ? 'వాయిస్ రిపోర్ట్ వినండి'
-                    : currentLang === 'hi'
-                    ? 'ऑडियो रिपोर्ट सुनें'
-                    : 'Listen to Clinical Report'}
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#37D6E6]/10 text-[#37D6E6] border border-[#37D6E6]/30">
-                  {currentLang === 'te' ? 'తెలుగు వాయిస్' : currentLang === 'hi' ? 'हिंदी आवाज़' : 'English Audio'}
-                </span>
-              </div>
-              <div className="text-[11px] text-[#A7B5C9]">
-                {audioState.isPlaying
-                  ? audioState.isPaused
-                    ? 'Playback Paused'
-                    : `Currently reading: ${audioState.currentSection} (${audioState.playbackRate}x)`
-                  : 'Click Play to hear synthesized evidence breakdown.'}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Section Filter */}
-            <select
-              value={selectedAudioSection}
-              onChange={(e) => setSelectedAudioSection(e.target.value as any)}
-              className="bg-[#101827] border border-white/15 text-xs text-white rounded-xl px-3 py-1.5 focus:outline-none cursor-pointer"
-            >
-              <option value="all">Entire Report</option>
-              <option value="overview">Overview & Indications</option>
-              <option value="interactions">Interactions</option>
-              <option value="risks">Risks & Adverse Reactions</option>
-              <option value="warnings">FDA Boxed Warnings</option>
-            </select>
-
-            {/* Play/Pause Button */}
-            <button
-              type="button"
-              onClick={handleToggleAudio}
-              className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#24D8ED] to-[#9475FF] text-[#070B14] font-bold text-xs flex items-center gap-1.5 hover:opacity-95 transition-all shadow-md cursor-pointer"
-            >
-              {audioState.isPlaying && !audioState.isPaused ? (
-                <>
-                  <Pause className="w-3.5 h-3.5" />
-                  <span>Pause</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>{audioState.isPaused ? 'Resume' : 'Play'}</span>
-                </>
-              )}
-            </button>
-
-            {/* Stop Button */}
-            <button
-              type="button"
-              onClick={handleStopAudio}
-              disabled={!audioState.isPlaying && !audioState.isPaused}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-              title="Stop Audio"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Speed Selector */}
-            <div className="flex items-center bg-[#101827] border border-white/15 rounded-xl p-0.5 text-[11px] font-mono">
-              {[0.75, 1.0, 1.25, 1.5].map((speed) => (
-                <button
-                  key={speed}
-                  type="button"
-                  onClick={() => handleSpeedChange(speed)}
-                  className={`px-2 py-1 rounded-lg transition-all cursor-pointer ${
-                    audioState.playbackRate === speed
-                      ? 'bg-[#37D6E6] text-[#070B14] font-bold'
-                      : 'text-[#A7B5C9] hover:text-white'
-                  }`}
-                >
-                  {speed}x
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <ReportAudioPlayer
+          currentLang={currentLang}
+          selectedSection={selectedAudioSection}
+          onSectionChange={setSelectedAudioSection}
+          onGenerateText={generateSpokenSummaryText}
+        />
       )}
 
       {/* ==================================================================== */}

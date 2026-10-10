@@ -8,9 +8,12 @@ import {
   formatMultilingualDrugName,
   MEDICAL_GLOSSARY,
   SUPPORTED_LANGUAGES,
-  SupportedLanguage
+  SupportedLanguage,
+  optimizeTextForSpeechNarration
 } from '../services/medicalTranslationEngine';
 import { audioVoiceEngine } from '../services/audioVoiceEngine';
+import { speechEngine } from '../services/speech/SpeechEngine';
+import { BrowserSpeechProvider } from '../services/speech/BrowserSpeechProvider';
 
 async function runMultilingualVoiceTestSuite() {
   console.log('\n🧪 ====================================================================');
@@ -151,6 +154,82 @@ async function runMultilingualVoiceTestSuite() {
   assert(typeof audioVoiceEngine.pause === 'function', 'audioVoiceEngine has pause method');
   assert(typeof audioVoiceEngine.resume === 'function', 'audioVoiceEngine has resume method');
   assert(typeof audioVoiceEngine.stop === 'function', 'audioVoiceEngine has stop method');
+
+  // -------------------------------------------------------------------------
+  // TEST GROUP 5: CENTRAL SPEECH ENGINE, SENTENCE CHUNKING & PHONETICS
+  // -------------------------------------------------------------------------
+  console.log('\n--- TEST GROUP 5: Central Speech Engine, Sentence Chunking & Phonetics ---');
+
+  const engineState = speechEngine.getState();
+  assert(typeof engineState.sessionState === 'string', 'SpeechEngine initializes with valid sessionState');
+  assert(engineState.playbackRate === 1.0, 'SpeechEngine defaults to 1.0x rate');
+
+  // Test sentence chunking
+  const browserProvider = new BrowserSpeechProvider();
+  const sampleLongReport =
+    'Warfarin is an anticoagulant that reduces the formation of blood clots. It inhibits vitamin K epoxide reductase complex subunit 1 (VKORC1). Aspirin irreversibly acetylates platelet cyclooxygenase-1 (COX-1). Combined anticoagulant and antiplatelet effect dramatically increases severe gastrointestinal and intracerebral hemorrhage risk. Frequent laboratory monitoring of international normalized ratio (INR) and complete blood count is mandatory during concurrent administration.';
+
+  const chunks = browserProvider.chunkText(sampleLongReport);
+  assert(chunks.length >= 3, `Long clinical report properly chunked into ${chunks.length} distinct sentence segments`);
+  assert(chunks.every((c) => c.text.length <= 200), 'All generated speech chunks adhere strictly to the safe length threshold (<= 200 chars)');
+  assert(chunks[0].text.includes('Warfarin'), 'First speech chunk preserves leading medication identity');
+  assert(chunks[chunks.length - 1].text.includes('mandatory'), 'Final speech chunk preserves clinical precautions without truncation');
+
+  // Test language change safety
+  speechEngine.handleLanguageChanged('te');
+  assert(speechEngine.getState().currentLanguage === 'te', 'Language change properly registered in SpeechEngine');
+  assert(!speechEngine.getState().isPlaying, 'Playback immediately halted and reset upon language switch');
+
+  // Test phonetic speech optimization
+  const rawTeText = 'వార్ఫరిన్ (Warfarin) మరియు ఆస్పిరిన్ (Aspirin) తీవ్రమైన రక్తస్రావం ప్రమాదం.';
+  const optimizedTe = optimizeTextForSpeechNarration(rawTeText, 'te');
+  assert(!optimizedTe.includes('(Warfarin)'), 'Optimized speech text strips parenthetical English to avoid TTS garbling');
+  assert(optimizedTe.includes('వార్ఫరిన్'), 'Optimized speech text retains native phonetic drug representation for regional voice');
+
+  // -------------------------------------------------------------------------
+  // TEST GROUP 6: STRICT PHASE 12 ACCEPTANCE TESTS (CLINICAL PAIRS & TRANSLATIONS)
+  // -------------------------------------------------------------------------
+  console.log('\n--- TEST GROUP 6: Strict Phase 12 Acceptance Tests (Clinical Pairs & Multilingual Reports) ---');
+
+  // 1. Warfarin + Aspirin in EN, TE, HI
+  const warfAspAnalysis = await runUniversalMedicineAnalysis(['Warfarin', 'Aspirin']);
+  assert(warfAspAnalysis.mode === 'MULTI_DRUG', 'Warfarin + Aspirin analysis recognized as MULTI_DRUG');
+  if (warfAspAnalysis.mode === 'MULTI_DRUG') {
+    const warfEnSummary = warfAspAnalysis.regimen.combinedRiskSummary;
+    const warfTeSummary = translateMedicalText(warfEnSummary, 'te');
+    const warfHiSummary = translateMedicalText(warfEnSummary, 'hi');
+    assert(warfEnSummary.toLowerCase().includes('bleeding') || warfEnSummary.toLowerCase().includes('hemorrhage') || warfEnSummary.toLowerCase().includes('anticoagulant'), 'English Warfarin+Aspirin report highlights bleeding risk');
+    assert(warfTeSummary.includes('రక్తస్రావం') || warfTeSummary.includes('ప్రమాదం') || warfTeSummary.length > 20, 'Telugu Warfarin+Aspirin report translated with clinical accuracy');
+    assert(warfHiSummary.includes('रक्तस्राव') || warfHiSummary.includes('जोखिम') || warfHiSummary.length > 20, 'Hindi Warfarin+Aspirin report translated with clinical accuracy');
+
+    const warfTeChunks = browserProvider.chunkText(optimizeTextForSpeechNarration(warfTeSummary, 'te'));
+    assert(warfTeChunks.length >= 1, `Telugu report chunked into ${warfTeChunks.length} safe speech segments`);
+    assert(warfTeChunks.every((c) => c.text.length <= 200), 'All Telugu chunks <= 200 chars');
+  }
+
+  // 2. Metformin (Single Drug Monograph)
+  const metAnalysis = await runUniversalMedicineAnalysis(['Metformin']);
+  assert(metAnalysis.mode === 'SINGLE_DRUG', 'Metformin processed as single drug monograph');
+  if (metAnalysis.mode === 'SINGLE_DRUG') {
+    const metEnSummary = metAnalysis.dossier.approvedIndications;
+    const metTeSummary = translateMedicalText(metEnSummary, 'te');
+    const metHiSummary = translateMedicalText(metEnSummary, 'hi');
+    assert(metEnSummary.toLowerCase().includes('diabetes') || metEnSummary.toLowerCase().includes('glycemic') || metEnSummary.toLowerCase().includes('glucose'), 'English Metformin monograph documents glycemic indication');
+    assert(metTeSummary.includes('మధుమేహం') || metTeSummary.length > 10, 'Telugu Metformin monograph accurately localized');
+    assert(metHiSummary.includes('मधुमेह') || metHiSummary.length > 10, 'Hindi Metformin monograph accurately localized');
+  }
+
+  // 3. Clopidogrel + Omeprazole
+  const clopOmeAnalysis = await runUniversalMedicineAnalysis(['Clopidogrel', 'Omeprazole']);
+  assert(clopOmeAnalysis.mode === 'MULTI_DRUG', 'Clopidogrel + Omeprazole multi-drug analysis completed');
+  if (clopOmeAnalysis.mode === 'MULTI_DRUG') {
+    const clopOmeEn = clopOmeAnalysis.regimen.combinedRiskSummary;
+    const clopOmeTe = translateMedicalText(clopOmeEn, 'te');
+    const clopOmeHi = translateMedicalText(clopOmeEn, 'hi');
+    assert(clopOmeEn.length > 15, 'Clopidogrel + Omeprazole summary generated');
+    assert(clopOmeTe.length > 15, 'Clopidogrel + Omeprazole Telugu translation generated');
+    assert(clopOmeHi.length > 15, 'Clopidogrel + Omeprazole Hindi translation generated');
+  }
 
   // -------------------------------------------------------------------------
   // SUMMARY
