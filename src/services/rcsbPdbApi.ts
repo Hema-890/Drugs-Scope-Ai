@@ -21,6 +21,8 @@ export interface PdbParsedModel {
   bounds: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number };
   chains: string[];
   residueCount: number;
+  isExperimental: boolean;
+  sourceLabel: string;
 }
 
 export async function fetchPdbMetadata(pdbId: string): Promise<ProteinStructure> {
@@ -142,7 +144,9 @@ function parsePdbText(pdbId: string, text: string): PdbParsedModel {
     center: [centerX, centerY, centerZ],
     bounds: { minX, maxX, minY, maxY, minZ, maxZ },
     chains: Array.from(chainsSet),
-    residueCount: new Set(atoms.map((a) => `${a.chainID}-${a.resSeq}`)).size
+    residueCount: new Set(atoms.map((a) => `${a.chainID}-${a.resSeq}`)).size,
+    isExperimental: true,
+    sourceLabel: 'RCSB Protein Data Bank (Experimental Archive)'
   };
 }
 
@@ -228,6 +232,8 @@ export function generateDeterministicProteinModel(pdbId: string): PdbParsedModel
     center: [0, 0, 0],
     bounds: { minX: -radius, maxX: radius, minY: -radius, maxY: radius, minZ: -25, maxZ: 25 },
     chains: ['A', 'L'],
-    residueCount: 46
+    residueCount: 46,
+    isExperimental: false,
+    sourceLabel: 'Illustrative Model (Procedural Ribbon Geometry)'
   };
 }

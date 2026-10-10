@@ -5,6 +5,7 @@ import { BIOLOGICAL_TARGETS } from '../data/mockTargets';
 import { PROTEIN_STRUCTURES } from '../data/mockStructures';
 import { fetchDrugLabelFromOpenFda } from './openFdaApi';
 import { resolveRxNormIdentifier } from './rxnormApi';
+import { persistAnalysisSession } from './supabaseClient';
 
 const STORAGE_KEY_ANALYSES = 'drug_scope_analysis_sessions';
 
@@ -269,8 +270,9 @@ export async function runMedicineAnalysis(
     }
   };
 
-  // Persist session to local storage
+  // Persist session to local storage & Supabase
   saveAnalysisSession(session);
+  persistAnalysisSession(session).catch((err) => console.warn('Supabase persist error:', err));
 
   return session;
 }
@@ -292,6 +294,7 @@ function generateResearchExplanation(drugA: Drug, drugB: Drug, item: any): strin
 
 export function getSavedAnalysisSessions(): AnalysisSession[] {
   try {
+    if (typeof localStorage === 'undefined') return [];
     const raw = localStorage.getItem(STORAGE_KEY_ANALYSES);
     return raw ? JSON.parse(raw) : [];
   } catch {
@@ -306,6 +309,7 @@ export function getAnalysisSessionById(id: string): AnalysisSession | null {
 
 export function saveAnalysisSession(session: AnalysisSession): void {
   try {
+    if (typeof localStorage === 'undefined') return;
     const sessions = getSavedAnalysisSessions();
     const existingIndex = sessions.findIndex((s) => s.id === session.id);
     let updated: AnalysisSession[];
@@ -316,7 +320,7 @@ export function saveAnalysisSession(session: AnalysisSession): void {
       updated = [session, ...sessions].slice(0, 25); // retain last 25
     }
     localStorage.setItem(STORAGE_KEY_ANALYSES, JSON.stringify(updated));
-  } catch (e) {
-    console.error('Failed to save analysis session', e);
+  } catch {
+    // Graceful offline fallback
   }
 }

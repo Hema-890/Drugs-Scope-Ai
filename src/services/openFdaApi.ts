@@ -7,7 +7,7 @@ export interface OpenFdaLabelResult {
   contraindications?: string;
   drugInteractions?: string;
   mechanismOfAction?: string;
-  source: 'Live openFDA API' | 'Drug Scope Curated SPL';
+  source: 'Server-side openFDA API' | 'Live openFDA API' | 'Drug Scope Curated SPL';
   provenanceTimestamp: string;
   latencyMs: number;
 }
@@ -16,12 +16,46 @@ export async function fetchDrugLabelFromOpenFda(drugName: string): Promise<OpenF
   const startTime = performance.now();
   const query = drugName.trim().toLowerCase();
 
+  // 1. Try our secure server-side API proxy first (which uses OPENFDA_API_KEY safely)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4500);
+
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api';
+    const serverUrl = `${apiBase}/openfda?drug=${encodeURIComponent(query)}`;
+    const sRes = await fetch(serverUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (sRes.ok) {
+      const serverData = await sRes.json();
+      if (serverData.success) {
+        const elapsed = Math.round(performance.now() - startTime);
+        return {
+          genericName: serverData.genericName || drugName,
+          brandName: serverData.brandName,
+          boxedWarning: serverData.boxedWarning,
+          contraindications: serverData.contraindications,
+          drugInteractions: serverData.drugInteractions,
+          mechanismOfAction: serverData.mechanismOfAction,
+          source: 'Server-side openFDA API',
+          provenanceTimestamp: serverData.provenanceTimestamp || new Date().toISOString(),
+          latencyMs: elapsed
+        };
+      }
+    }
+  } catch (serverErr) {
+    // Proceed to direct public API fallback
+  }
+
+  // 2. Direct public openFDA fallback
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    const url = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(query)}"+openfda.brand_name:"${encodeURIComponent(query)}"&limit=1`;
-    const res = await fetch(url, { signal: controller.signal });
+    const publicUrl = `https://api.fda.gov/drug/label.json?search=openfda.generic_name:"${encodeURIComponent(
+      query
+    )}"+openfda.brand_name:"${encodeURIComponent(query)}"&limit=1`;
+    const res = await fetch(publicUrl, { signal: controller.signal });
     clearTimeout(timeoutId);
 
     if (res.ok) {
@@ -43,9 +77,10 @@ export async function fetchDrugLabelFromOpenFda(drugName: string): Promise<OpenF
       }
     }
   } catch (err) {
-    // Graceful fallback to verified records
+    // Proceed to curated monograph fallback
   }
 
+  // 3. Fallback to curated monographs
   const fallback = VERIFIED_DRUGS.find(
     (d) =>
       d.genericName.toLowerCase().includes(query) ||

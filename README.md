@@ -54,20 +54,46 @@
 - Node.js >= 18.x (tested on Node v22 LTS)
 - npm >= 9.x
 
-### Installation
+### Installation & Environment Setup
+
+1. **Clone and install dependencies:**
 ```bash
 git clone <repository-url>
 cd "Drugs adverse intercation"
 npm install
 ```
 
-### Development Server
+2. **Configure Environment Variables:**
+Copy the template to your local environment file:
 ```bash
-npm run dev
-# Server running at http://127.0.0.1:3000/
+cp .env.example .env.local
 ```
 
-### Production Build
+Edit `.env.local` to configure your credentials:
+```bash
+# Server-only Credentials (never exposed to browser JS)
+OPENFDA_API_KEY=your_openfda_api_key_here
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=your_supabase_secret_service_role_key
+
+# Browser-safe Public Configuration
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_anon_key
+VITE_API_BASE_URL=/api
+```
+
+> **Security Guarantee:** Server-only variables (`OPENFDA_API_KEY`, `SUPABASE_SECRET_KEY`) are accessed strictly on the server-side proxy (`/api/openfda`, `/api/health`) and are never bundled into client JavaScript.
+
+3. **Database Setup (Supabase PostgreSQL):**
+Execute the migration located at `supabase/migrations/20241010000000_drug_scope_core_schema.sql` in your Supabase SQL editor to create all required tables (`profiles`, `drugs`, `drug_labels`, `pairwise_interactions`, `analysis_sessions`) with Row Level Security (RLS) policies.
+
+4. **Development Server:**
+```bash
+npm run dev
+# Server running with serverless /api/* proxy at http://127.0.0.1:3000/
+```
+
+5. **Production Build:**
 ```bash
 npm run build
 ```

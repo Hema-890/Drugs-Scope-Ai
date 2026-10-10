@@ -17,6 +17,8 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import jsPDF from 'jspdf';
+
 interface ScientificDossierReportProps {
   session: AnalysisSession;
   onBack: () => void;
@@ -25,6 +27,122 @@ interface ScientificDossierReportProps {
 export const ScientificDossierReport: React.FC<ScientificDossierReportProps> = ({ session, onBack }) => {
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPdf = () => {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    // Header Branding
+    doc.setFontSize(8);
+    doc.setTextColor(36, 216, 237);
+    doc.text('DRUG SCOPE AI — AUTONOMOUS DRUG–DRUG ADVERSE INTERACTION ENGINE', 14, 15);
+
+    doc.setFontSize(15);
+    doc.setTextColor(20, 20, 25);
+    doc.text(session.title || 'Polypharmacy Clinical Analysis Dossier', 14, 24);
+
+    doc.setFontSize(8.5);
+    doc.setTextColor(90, 100, 115);
+    doc.text(
+      `Dossier ID: ${session.id}   |   Date: ${new Date(session.timestamp).toLocaleDateString()}   |   Dataset Mode: ${session.datasetMode}`,
+      14,
+      30
+    );
+
+    let y = 38;
+
+    // Regimen Summary
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Analyzed Medication Regimen:', 14, y);
+    y += 5;
+
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    const medList =
+      session.medications?.map((m) => m.genericName).join(', ') ||
+      session.findings.map((f) => `${f.drugAName} + ${f.drugBName}`).join(', ') ||
+      'Clinical Formulation Combination';
+    const medLines = doc.splitTextToSize(medList, 180);
+    doc.text(medLines, 14, y);
+    y += medLines.length * 4 + 4;
+
+    // Primary Risk
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(
+      `Primary Risk Assessment: ${session.summary?.primaryRiskSummary || 'Documented Multi-drug Conflict Profile'}`,
+      14,
+      y
+    );
+    y += 7;
+
+    // Findings section
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Documented Pairwise Interaction Findings:', 14, y);
+    y += 5;
+
+    session.findings.forEach((finding, idx) => {
+      if (y > 255) {
+        doc.addPage();
+        y = 15;
+      }
+
+      // Title & Severity
+      doc.setFontSize(9.5);
+      if (finding.severity === 'Contraindicated') doc.setTextColor(225, 29, 72);
+      else if (finding.severity === 'Major') doc.setTextColor(234, 88, 12);
+      else if (finding.severity === 'Moderate') doc.setTextColor(202, 138, 4);
+      else doc.setTextColor(13, 148, 136);
+
+      doc.text(
+        `${idx + 1}. ${finding.drugAName} + ${finding.drugBName}  [${finding.severity.toUpperCase()}]`,
+        14,
+        y
+      );
+      y += 4.5;
+
+      doc.setFontSize(8);
+      doc.setTextColor(51, 65, 85);
+      const mechLines = doc.splitTextToSize(`Mechanism: ${finding.mechanism}`, 180);
+      doc.text(mechLines, 14, y);
+      y += mechLines.length * 3.8 + 1.5;
+
+      const clinLines = doc.splitTextToSize(`Consequence: ${finding.clinicalConsequence}`, 180);
+      doc.text(clinLines, 14, y);
+      y += clinLines.length * 3.8 + 1.5;
+
+      const mgmtLines = doc.splitTextToSize(`Management: ${finding.managementGuidance}`, 180);
+      doc.text(mgmtLines, 14, y);
+      y += mgmtLines.length * 3.8 + 1.5;
+
+      const sourcesText =
+        finding.sources?.map((s) => `${s.name} (${s.citation})`).join('; ') ||
+        'Verified Drug Scope Curated Registry';
+      const srcLines = doc.splitTextToSize(`Evidence Sources: ${sourcesText}`, 180);
+      doc.setTextColor(37, 99, 235);
+      doc.text(srcLines, 14, y);
+      y += srcLines.length * 3.8 + 5;
+    });
+
+    // Disclaimer
+    if (y > 265) {
+      doc.addPage();
+      y = 15;
+    }
+    y += 3;
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    const disclaimer =
+      'RESEARCH USE LIMITATION: Drug Scope AI is a scientific decision-support and bioinformatics research platform. It does not replace professional clinical judgment or individualized prescribing decisions. Not evaluated by the U.S. FDA as a software medical device.';
+    doc.text(doc.splitTextToSize(disclaimer, 180), 14, y);
+
+    doc.save(`DrugScope_${session.id}_dossier.pdf`);
   };
 
   const handleDownloadCsv = () => {
@@ -51,19 +169,36 @@ export const ScientificDossierReport: React.FC<ScientificDossierReportProps> = (
     link.click();
   };
 
+  const handleDownloadJson = () => {
+    const jsonBlob = new Blob([JSON.stringify(session, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(jsonBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `DrugScope_${session.id}_data.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto text-[#F5F8FF]">
       {/* Top Action Bar (Hidden during print) */}
       <div className="print:hidden bg-[#0B1120] border border-white/[0.08] p-4 rounded-2xl flex items-center justify-between">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-xs font-semibold text-[#A6B5CB] hover:text-white transition-colors"
+          className="flex items-center gap-2 text-xs font-semibold text-[#A6B5CB] hover:text-white transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Analysis Workspace</span>
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={handleDownloadJson}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#152238] border border-white/10 text-xs font-semibold text-[#A6B5CB] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export JSON</span>
+          </button>
           <button
             onClick={handleDownloadCsv}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#152238] border border-white/10 text-xs font-semibold text-[#24D8ED] hover:bg-white/5 transition-colors cursor-pointer"
@@ -72,11 +207,18 @@ export const ScientificDossierReport: React.FC<ScientificDossierReportProps> = (
             <span>Export CSV</span>
           </button>
           <button
+            onClick={handleDownloadPdf}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#24D8ED] to-[#1E90FF] text-[#070B14] font-bold text-xs hover:opacity-95 shadow-lg shadow-[#24D8ED]/10 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            <span>Download PDF</span>
+          </button>
+          <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#24D8ED] to-[#9475FF] text-[#070B14] font-bold text-xs hover:opacity-95 shadow-lg shadow-[#24D8ED]/10 cursor-pointer"
+            title="Open system print dialog"
+            className="p-2 rounded-xl bg-[#152238] border border-white/10 text-xs text-[#A6B5CB] hover:text-white transition-colors cursor-pointer"
           >
             <Printer className="w-4 h-4" />
-            <span>Print / Save as PDF</span>
           </button>
         </div>
       </div>

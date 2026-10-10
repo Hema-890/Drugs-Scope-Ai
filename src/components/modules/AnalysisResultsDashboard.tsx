@@ -83,6 +83,29 @@ export const AnalysisResultsDashboard: React.FC<AnalysisResultsDashboardProps> =
     dl.click();
   };
 
+  const exportCsv = () => {
+    const headers = ['Drug A', 'Drug B', 'Severity', 'Interaction Type', 'Evidence Status', 'Mechanism', 'Clinical Consequence', 'Management Guidance', 'Primary Citations'];
+    const rows = session.findings.map((f) => [
+      `"${f.drugAName.replace(/"/g, '""')}"`,
+      `"${f.drugBName.replace(/"/g, '""')}"`,
+      `"${f.severity}"`,
+      `"${f.interactionType}"`,
+      `"${f.evidenceStatus}"`,
+      `"${f.mechanism.replace(/"/g, '""')}"`,
+      `"${f.clinicalConsequence.replace(/"/g, '""')}"`,
+      `"${f.managementGuidance.replace(/"/g, '""')}"`,
+      `"${f.sources.map((s) => s.citation).join('; ').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const dl = document.createElement('a');
+    dl.setAttribute('href', url);
+    dl.setAttribute('download', `DrugScope_${session.id}_findings.csv`);
+    dl.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 text-[#F5F8FF]">
       {/* Top Header Command Bar */}
@@ -151,11 +174,20 @@ export const AnalysisResultsDashboard: React.FC<AnalysisResultsDashboardProps> =
             <span>Generate PDF Report</span>
           </button>
           <button
-            onClick={exportJson}
-            className="p-2 rounded-xl bg-[#152238] border border-white/10 text-[#A6B5CB] hover:text-white transition-colors"
-            title="Export JSON"
+            onClick={exportCsv}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#152238] border border-white/10 text-xs font-semibold text-[#A6B5CB] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+            title="Export CSV data table"
           >
             <Download className="w-3.5 h-3.5" />
+            <span>CSV</span>
+          </button>
+          <button
+            onClick={exportJson}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#152238] border border-white/10 text-xs font-semibold text-[#A6B5CB] hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+            title="Export JSON graph dataset"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>JSON</span>
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CommandPalette } from './components/common/CommandPalette';
 import { Navbar } from './components/common/Navbar';
 import { Sidebar } from './components/common/Sidebar';
@@ -28,6 +28,8 @@ import { MolecularStoryboard } from './components/differentiators/MolecularStory
 import { MedicineAnalysisWorkspace } from './components/modules/MedicineAnalysisWorkspace';
 import { AnalysisResultsDashboard } from './components/modules/AnalysisResultsDashboard';
 import { ScientificDossierReport } from './components/reports/ScientificDossierReport';
+import { AuthModal } from './components/common/AuthModal';
+import { supabase } from './services/supabaseClient';
 import {
   getStoredMode,
   getStoredUser,
@@ -43,6 +45,54 @@ export function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [voiceModalOpen, setVoiceModalOpen] = useState<boolean>(false);
+  const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  // Sync Supabase Auth session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setIsAuthenticated(true);
+        setUser((prev) => ({
+          ...prev,
+          id: session.user.id,
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Researcher',
+          email: session.user.email,
+          organization: session.user.user_metadata?.organization || prev.organization,
+          role: (session.user.user_metadata?.role as any) || 'researcher'
+        }));
+      } else {
+        setIsAuthenticated(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setIsAuthenticated(true);
+        setUser((prev) => ({
+          ...prev,
+          id: session.user.id,
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Researcher',
+          email: session.user.email,
+          organization: session.user.user_metadata?.organization || prev.organization,
+          role: (session.user.user_metadata?.role as any) || 'researcher'
+        }));
+      } else {
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setIsAuthenticated(false);
+    setUser(getStoredUser());
+  };
 
   // Cross-module active items
   const [targetDrug, setTargetDrug] = useState<Drug | null>(null);
@@ -186,8 +236,11 @@ export function App() {
         mode={mode}
         onModeChange={handleModeChange}
         user={user}
+        isAuthenticated={isAuthenticated}
         onOpenCommandPalette={() => setCommandPaletteOpen(true)}
         onOpenVoiceModal={() => setVoiceModalOpen(true)}
+        onOpenAuthModal={() => setAuthModalOpen(true)}
+        onSignOut={handleSignOut}
         activeModule={activeModule}
         onNavigate={handleNavigate}
       />
@@ -229,6 +282,20 @@ export function App() {
         isOpen={voiceModalOpen}
         onClose={() => setVoiceModalOpen(false)}
         onNavigate={handleNavigate}
+      />
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={(profile) => {
+          setUser((prev) => ({
+            ...prev,
+            name: profile.name,
+            email: profile.email,
+            role: 'researcher'
+          }));
+        }}
       />
     </div>
   );
