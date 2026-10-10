@@ -1,0 +1,139 @@
+:root {
+  --bg-canvas: #070B14;
+  --surface-primary: #101827;
+  --surface-secondary: #172134;
+  --surface-elevated: #1D2A3E;
+  --text-primary: #F4F7FB;
+  --text-secondary: #A7B5C9;
+  --text-muted: #64748B;
+  --accent-cyan: #37D6E6;
+  --accent-violet: #9079F7;
+  --medical-teal: #32C8B7;
+  --warning-amber: #EFB85A;
+  --critical-red: #F16D76;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-glow: rgba(55, 214, 230, 0.25);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+code, pre, .font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B111C;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1D2A3E;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #37D6E6;
+}
+
+/* Glassmorphic Surfaces */
+.glass-panel {
+  background: rgba(16, 24, 39, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card {
+  background: rgba(23, 33, 52, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  border-color: rgba(55, 214, 230, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px -6px rgba(7, 11, 20, 0.6), 0 0 15px -3px rgba(55, 214, 230, 0.15);
+}
+
+/* Glow Elements */
+.glow-cyan {
+  box-shadow: 0 0 20px -3px rgba(55, 214, 230, 0.35);
+}
+
+.glow-violet {
+  box-shadow: 0 0 20px -3px rgba(144, 121, 247, 0.35);
+}
+
+.glow-teal {
+  box-shadow: 0 0 20px -3px rgba(50, 200, 183, 0.35);
+}
+
+/* Subtle Shimmer for Scientific Scanning */
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.scanline-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.scanline-effect::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 100%;
+  background: linear-gradient(to bottom, transparent, rgba(55, 214, 230, 0.04), transparent);
+  animation: scanline 4s linear infinite;
+  pointer-events: none;
+}
+
+/* Badge and Status Colors */
+.badge-documented {
+  background: rgba(50, 200, 183, 0.15);
+  color: #32C8B7;
+  border: 1px solid rgba(50, 200, 183, 0.3);
+}
+
+.badge-predicted {
+  background: rgba(144, 121, 247, 0.15);
+  color: #9079F7;
+  border: 1px solid rgba(144, 121, 247, 0.3);
+}
+
+.badge-conflict {
+  background: rgba(239, 184, 90, 0.15);
+  color: #EFB85A;
+  border: 1px solid rgba(239, 184, 90, 0.3);
+}
+
+.badge-critical {
+  background: rgba(241, 109, 118, 0.15);
+  color: #F16D76;
+  border: 1px solid rgba(241, 109, 118, 0.3);
+}
