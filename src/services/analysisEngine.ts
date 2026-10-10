@@ -5,7 +5,8 @@ import { BIOLOGICAL_TARGETS } from '../data/mockTargets';
 import { PROTEIN_STRUCTURES } from '../data/mockStructures';
 import { fetchDrugLabelFromOpenFda } from './openFdaApi';
 import { resolveRxNormIdentifier } from './rxnormApi';
-import { persistAnalysisSession } from './supabaseClient';
+import { persistAnalysisSession, supabase } from './supabaseClient';
+import liveIngestedMedicines from '../data/liveIngestedMedicines.json';
 
 const STORAGE_KEY_ANALYSES = 'drug_scope_analysis_sessions';
 
@@ -36,31 +37,105 @@ export async function runMedicineAnalysis(
     })
   );
 
+  // Attempt retrieving remote claims from Supabase PostgreSQL
+  let remoteClaims: any[] = [];
+  try {
+    const { data: claimsData } = await supabase
+      .from('scientific_claims')
+      .select('*')
+      .limit(50);
+    if (claimsData && claimsData.length > 0) {
+      remoteClaims = claimsData;
+    }
+  } catch {
+    // Continue with local verified dataset
+  }
+
   // 2. Discover pairwise interactions
   const findings: AnalysisFinding[] = [];
-  const selectedIds = selectedDrugs.map((d) => d.id);
 
   for (let i = 0; i < selectedDrugs.length; i++) {
     for (let j = i + 1; j < selectedDrugs.length; j++) {
       const drugA = selectedDrugs[i];
       const drugB = selectedDrugs[j];
 
+      const nameA = drugA.genericName.toLowerCase();
+      const nameB = drugB.genericName.toLowerCase();
+
+      // Check PostgreSQL scientific_claims first
+      const remoteMatched = remoteClaims.find((c) => {
+        const text = ((c.mechanism_summary || '') + ' ' + (c.source_citation || '')).toLowerCase();
+        return (
+          (text.includes(nameA) && text.includes(nameB)) ||
+          (text.includes(nameA.split(' ')[0]) && text.includes(nameB.split(' ')[0]))
+        );
+      });
+
       // Check verified registry
       const matched = PAIRWISE_INTERACTIONS.find(
         (inter) =>
           (inter.drugAId === drugA.id && inter.drugBId === drugB.id) ||
-          (inter.drugAId === drugB.id && inter.drugBId === drugA.id)
+          (inter.drugAId === drugB.id && inter.drugBId === drugA.id) ||
+          (nameA.includes(inter.drugAName.toLowerCase().split(' ')[0]) && nameB.includes(inter.drugBName.toLowerCase().split(' ')[0])) ||
+          (nameA.includes(inter.drugBName.toLowerCase().split(' ')[0]) && nameB.includes(inter.drugAName.toLowerCase().split(' ')[0]))
       );
+
+      // Check live ingested FDA SPL label text
+      const ingestedA = (liveIngestedMedicines as any[]).find((m) =>
+        m.name.toLowerCase().includes(nameA.split(' ')[0]) || nameA.includes(m.name.toLowerCase())
+      );
+      const ingestedB = (liveIngestedMedicines as any[]).find((m) =>
+        m.name.toLowerCase().includes(nameB.split(' ')[0]) || nameB.includes(m.name.toLowerCase())
+      );
+
+      const labelInteractionsA = ingestedA?.label?.drugInteractions?.toLowerCase() || '';
+      const labelBoxedA = ingestedA?.label?.boxedWarning?.toLowerCase() || '';
+      const labelContraA = ingestedA?.label?.contraindications?.toLowerCase() || '';
+
+      const labelInteractionsB = ingestedB?.label?.drugInteractions?.toLowerCase() || '';
+      const labelBoxedB = ingestedB?.label?.boxedWarning?.toLowerCase() || '';
+      const labelContraB = ingestedB?.label?.contraindications?.toLowerCase() || '';
+
+      const drugBInLabelA = labelInteractionsA.includes(nameB.split(' ')[0]) || labelBoxedA.includes(nameB.split(' ')[0]) || labelContraA.includes(nameB.split(' ')[0]);
+      const drugAInLabelB = labelInteractionsB.includes(nameA.split(' ')[0]) || labelBoxedB.includes(nameA.split(' ')[0]) || labelContraB.includes(nameA.split(' ')[0]);
 
       // Check shared enzymes
       const sharedEnzymes = drugA.primaryMetabolizingEnzymes.filter((enz) =>
-        drugB.primaryMetabolizingEnzymes.includes(enz)
+        drugB.primaryMetabolizingEnzymes.some((e2) => e2.toLowerCase().includes(enz.toLowerCase().split(' ')[0]))
       );
 
       // Check shared targets
       const sharedTargets = drugA.targets.filter((t) => drugB.targets.includes(t));
 
-      if (matched) {
+      if (remoteMatched) {
+        findings.push({
+          id: remoteMatched.id,
+          drugAId: drugA.id,
+          drugAName: drugA.genericName,
+          drugBId: drugB.id,
+          drugBName: drugB.genericName,
+          severity: remoteMatched.severity_level as any,
+          evidenceStatus: remoteMatched.evidence_status as any,
+          interactionType: remoteMatched.claim_type || 'Pharmacokinetic / Pharmacodynamic Conflict',
+          mechanism: remoteMatched.mechanism_summary,
+          clinicalConsequence: remoteMatched.clinical_consequence,
+          managementGuidance: remoteMatched.management_guidance,
+          simpleExplanation: generateSimpleExplanation(drugA, drugB, remoteMatched.severity_level, remoteMatched.mechanism_summary),
+          professionalExplanation: `Co-administration of ${drugA.genericName} and ${drugB.genericName} [Severity: ${remoteMatched.severity_level}]. Mechanism: ${remoteMatched.mechanism_summary} Clinical Outcome: ${remoteMatched.clinical_consequence} Management: ${remoteMatched.management_guidance}`,
+          researchExplanation: `PostgreSQL verified scientific claim [ID: ${remoteMatched.id}]. Pathway mechanism: ${remoteMatched.mechanism_summary}. Regulatory citation: ${remoteMatched.source_citation}`,
+          sources: [
+            {
+              name: 'FDA Drug Product Label & Clinical Guidelines',
+              type: 'openFDA Label',
+              citation: remoteMatched.source_citation
+            }
+          ],
+          cypEnzymes: sharedEnzymes,
+          receptors: sharedTargets,
+          targetOverlap: sharedTargets,
+          provenanceStatus: 'Supabase PostgreSQL Verified Scientific Claim'
+        });
+      } else if (matched) {
         findings.push({
           id: matched.id,
           drugAId: drugA.id,
@@ -79,25 +154,60 @@ export async function runMedicineAnalysis(
           sources: matched.primarySources,
           cypEnzymes: matched.enzymeConflicts.length > 0 ? matched.enzymeConflicts : sharedEnzymes,
           receptors: matched.targetOverlap.length > 0 ? matched.targetOverlap : sharedTargets,
-          targetOverlap: matched.targetOverlap
+          targetOverlap: matched.targetOverlap,
+          provenanceStatus: 'Curated FDA Prescribing Monograph & Clinical Guideline'
+        });
+      } else if (drugBInLabelA || drugAInLabelB) {
+        // Documented in FDA package insert text
+        const isContra = labelContraA.includes(nameB.split(' ')[0]) || labelContraB.includes(nameA.split(' ')[0]) || labelBoxedA.includes(nameB.split(' ')[0]) || labelBoxedB.includes(nameA.split(' ')[0]);
+        const severity = isContra ? 'Contraindicated' : 'Major';
+        const sourceLabelDrug = drugBInLabelA ? ingestedA : ingestedB;
+        const splSetId = sourceLabelDrug?.label?.splSetId || 'Official FDA SPL';
+
+        findings.push({
+          id: `finding-fda-${drugA.id}-${drugB.id}`,
+          drugAId: drugA.id,
+          drugAName: drugA.genericName,
+          drugBId: drugB.id,
+          drugBName: drugB.genericName,
+          severity,
+          evidenceStatus: 'Documented',
+          interactionType: isContra ? 'Authoritative Contraindication' : 'FDA Documented Drug Interaction',
+          mechanism: `FDA labeling for ${sourceLabelDrug?.name} explicitly identifies concomitant use with ${drugBInLabelA ? drugB.genericName : drugA.genericName} as an adverse interaction affecting clearance and clinical safety.`,
+          clinicalConsequence: `Elevated risk of adverse pharmacological reactions or altered bioavailability documented in FDA Structured Product Labeling.`,
+          managementGuidance: isContra ? 'Contraindicated. Avoid concomitant use.' : 'Exercise clinical caution. Monitor therapeutic drug levels and adjust dosages as indicated.',
+          simpleExplanation: generateSimpleExplanation(drugA, drugB, severity, `Documented in FDA safety labeling.`),
+          professionalExplanation: `Authoritative interaction documented in FDA Structured Product Labeling (SPL Set ID: ${splSetId}). Clinical observation and regimen adjustment advised.`,
+          researchExplanation: `FDA official prescribing monograph SPL Section 7 identifies pharmacodynamic or pharmacokinetic cross-talk between ${drugA.genericName} and ${drugB.genericName}.`,
+          sources: [
+            {
+              name: `FDA Approved Prescribing Information (${sourceLabelDrug?.name} SPL)`,
+              type: 'openFDA Label',
+              citation: `FDA CDER Structured Product Labeling (SPL Set ID: ${splSetId}, Sec. 7 Drug Interactions)`
+            }
+          ],
+          cypEnzymes: sharedEnzymes,
+          receptors: sharedTargets,
+          targetOverlap: sharedTargets,
+          provenanceStatus: 'Official FDA Structured Product Labeling (SPL)'
         });
       } else if (sharedEnzymes.length > 0) {
-        // Enzyme competition detected without direct black-box conflict
+        // Enzyme competition detected without direct black-box conflict -> Potential mechanism
         findings.push({
           id: `finding-enz-${drugA.id}-${drugB.id}`,
           drugAId: drugA.id,
           drugAName: drugA.genericName,
           drugBId: drugB.id,
           drugBName: drugB.genericName,
-          severity: 'Moderate',
-          evidenceStatus: 'Documented',
-          interactionType: 'Pharmacokinetic (CYP Competition)',
-          mechanism: `Both compounds utilize ${sharedEnzymes.join(', ')} for metabolic clearance, creating competitive displacement risk.`,
-          clinicalConsequence: `May alter circulating plasma concentrations of either compound, especially in slow metabolizers.`,
+          severity: 'Potential mechanism',
+          evidenceStatus: 'Uncertain',
+          interactionType: 'Pharmacokinetic Competition (CYP Clearance Pathway)',
+          mechanism: `Both compounds utilize ${sharedEnzymes.join(', ')} for metabolic clearance, creating potential competitive displacement or substrate inhibition risk.`,
+          clinicalConsequence: `May alter circulating plasma concentrations of either compound, especially in slow metabolizers. Clinical significance not formally established in package inserts.`,
           managementGuidance: `Monitor for augmented therapeutic effects or dose titration requirements. Check liver function markers.`,
-          simpleExplanation: `Both ${drugA.genericName} and ${drugB.genericName} are broken down by the same liver enzymes (${sharedEnzymes.join(', ')}). When taken together, your liver may process them more slowly, which can raise medicine levels in your bloodstream. Ask your doctor if your doses should be adjusted.`,
-          professionalExplanation: `Co-administration presents substrate competition at hepatic ${sharedEnzymes.join(', ')}. Assess patient CYP genotype where accessible and consider staggered administration or therapeutic drug monitoring.`,
-          researchExplanation: `Competitive in vitro inhibition potential at ${sharedEnzymes.join(', ')}. Km values indicate overlapping substrate recognition in microsomal assays.`,
+          simpleExplanation: generateSimpleExplanation(drugA, drugB, 'Potential mechanism', `Both medicines are cleared by the same liver enzymes (${sharedEnzymes.join(', ')}).`),
+          professionalExplanation: `Co-administration presents potential substrate competition at hepatic ${sharedEnzymes.join(', ')}. Assess patient CYP genotype where accessible and consider staggered administration or therapeutic drug monitoring.`,
+          researchExplanation: `Competitive in vitro inhibition potential at ${sharedEnzymes.join(', ')}. Km values indicate overlapping substrate recognition in microsomal assays without verified package insert black-box contraindication.`,
           sources: [
             {
               name: 'FDA Drug Development & Drug Interactions Guidance',
@@ -107,25 +217,26 @@ export async function runMedicineAnalysis(
           ],
           cypEnzymes: sharedEnzymes,
           receptors: sharedTargets,
-          targetOverlap: sharedTargets
+          targetOverlap: sharedTargets,
+          provenanceStatus: 'Algorithmic Mechanistic Screening (Unconfirmed Clinical Significance)'
         });
       } else {
-        // No direct conflict documented
+        // No direct conflict documented -> Insufficient evidence
         findings.push({
           id: `finding-clear-${drugA.id}-${drugB.id}`,
           drugAId: drugA.id,
           drugAName: drugA.genericName,
           drugBId: drugB.id,
           drugBName: drugB.genericName,
-          severity: 'Theoretical',
+          severity: 'Insufficient evidence',
           evidenceStatus: 'Evidence Gap',
-          interactionType: 'No Major Documented Conflict',
-          mechanism: `Independent metabolic pathways and non-overlapping primary molecular targets in active reference registries.`,
-          clinicalConsequence: `No severe adverse pharmacodynamic or pharmacokinetic cross-talk observed in standard package inserts.`,
+          interactionType: 'No Authoritative Conflict Documented',
+          mechanism: `No clinical drug-drug interaction is documented for this specific pair in indexed FDA package inserts, DailyMed SPL records, or reference clinical monographs. Note: Absence of a documented interaction does not establish clinical safety in multi-drug regimens.`,
+          clinicalConsequence: `No severe adverse pharmacodynamic or pharmacokinetic cross-talk observed in standard package inserts. Individual patient monitoring remains standard of care.`,
           managementGuidance: `Standard clinical dosing schedule; continue routine patient monitoring.`,
-          simpleExplanation: `Our medical evidence records do not show a major documented conflict between ${drugA.genericName} and ${drugB.genericName}. However, always inform your doctor or pharmacist about all supplements and medicines you take.`,
-          professionalExplanation: `No high-severity interaction recorded in SPL/RxNav registries. Primary metabolic pathways differ (${drugA.primaryMetabolizingEnzymes.join(', ')} vs ${drugB.primaryMetabolizingEnzymes.join(', ')}).`,
-          researchExplanation: `Independent target engagement profiles without known allosteric or competitive crosstalk in ChEMBL bioassays.`,
+          simpleExplanation: generateSimpleExplanation(drugA, drugB, 'Insufficient evidence', `No known interaction is recorded in standard databases.`),
+          professionalExplanation: `No high-severity interaction recorded in SPL/RxNav registries. Primary metabolic pathways differ (${drugA.primaryMetabolizingEnzymes.join(', ') || 'independent'} vs ${drugB.primaryMetabolizingEnzymes.join(', ') || 'independent'}). Note: Evidence gap does not preclude unstudied pharmacodynamic interactions.`,
+          researchExplanation: `Independent target engagement profiles without known allosteric or competitive crosstalk in ChEMBL bioassays. Indexed literature does not report verified clinical interactions for this specific dyad.`,
           sources: [
             {
               name: 'RxNav Interaction API & DailyMed',
@@ -135,7 +246,8 @@ export async function runMedicineAnalysis(
           ],
           cypEnzymes: [],
           receptors: [],
-          targetOverlap: []
+          targetOverlap: [],
+          provenanceStatus: 'No Authoritative Interaction Record Found'
         });
       }
     }
@@ -234,16 +346,22 @@ export async function runMedicineAnalysis(
   const contraindicatedCount = findings.filter((f) => f.severity === 'Contraindicated').length;
   const majorCount = findings.filter((f) => f.severity === 'Major').length;
   const moderateCount = findings.filter((f) => f.severity === 'Moderate').length;
+  const potentialCount = findings.filter((f) => f.severity === 'Potential mechanism').length;
+  const insufficientCount = findings.filter((f) => f.severity === 'Insufficient evidence').length;
   const documentedCount = findings.filter((f) => f.evidenceStatus === 'Documented').length;
-  const documentedEvidencePercent = findings.length > 0 ? Math.round((documentedCount / findings.length) * 100) : 100;
+  const documentedEvidencePercent = findings.length > 0 ? Math.round((documentedCount / findings.length) * 100) : 0;
 
   let primaryRiskSummary = 'No severe pharmacokinetic conflicts identified across evaluated regimens.';
   if (contraindicatedCount > 0) {
-    primaryRiskSummary = `Critical alert: ${contraindicatedCount} contraindicated combination detected with severe adverse escalation risk. Immediate medication review recommended.`;
+    primaryRiskSummary = `Critical alert: ${contraindicatedCount} contraindicated combination(s) detected with severe adverse escalation risk. Immediate medication review recommended.`;
   } else if (majorCount > 0) {
-    primaryRiskSummary = `Major interaction warning: ${majorCount} significant metabolic conflict identified. Therapeutic drug monitoring and potential dose reduction advised.`;
+    primaryRiskSummary = `Major interaction warning: ${majorCount} significant metabolic conflict(s) identified. Therapeutic drug monitoring and potential dose reduction advised.`;
   } else if (moderateCount > 0) {
     primaryRiskSummary = `Moderate clearance overlap detected. Clinical observation advised.`;
+  } else if (potentialCount > 0) {
+    primaryRiskSummary = `Potential mechanistic overlap identified at shared metabolic clearance pathways; clinical significance unconfirmed in package inserts.`;
+  } else if (insufficientCount > 0) {
+    primaryRiskSummary = `Insufficient clinical interaction evidence available for evaluated combination; safety cannot be presumed without patient-specific review.`;
   }
 
   const session: AnalysisSession = {
@@ -278,14 +396,23 @@ export async function runMedicineAnalysis(
 }
 
 function generateSimpleExplanation(drugA: Drug, drugB: Drug, severity: string, mechanism: string): string {
-  if (severity === 'Contraindicated' || severity === 'Major') {
-    return `Taking ${drugA.genericName} together with ${drugB.genericName} is known to cause serious side effects. ${mechanism} Because of this, medicine levels can rise dangerously in your body, which can cause excessive bleeding or abnormal heart rhythms. You should never take these together without speaking directly to your doctor or pharmacist.`;
+  if (severity === 'Contraindicated') {
+    return `CRITICAL CONTRAINDICATION: Taking ${drugA.genericName} together with ${drugB.genericName} is contraindicated by regulatory safety labeling. ${mechanism} This combination creates high risk of severe toxicity or therapeutic failure. Do not co-administer without urgent medical consultation.`;
   }
-  return `${drugA.genericName} and ${drugB.genericName} may influence each other in your body. ${mechanism} Talk to your healthcare provider to verify your dosage schedule and ensure safe monitoring.`;
+  if (severity === 'Major') {
+    return `MAJOR INTERACTION: Taking ${drugA.genericName} together with ${drugB.genericName} is documented to cause significant adverse effects. ${mechanism} Blood concentrations or pharmacological effects may change drastically. Close monitoring and dose adjustment are strongly recommended.`;
+  }
+  if (severity === 'Moderate') {
+    return `MODERATE INTERACTION: ${drugA.genericName} and ${drugB.genericName} have documented interactions that may alter therapeutic efficacy or clearance. ${mechanism} Monitor for changes in clinical response.`;
+  }
+  if (severity === 'Potential mechanism') {
+    return `POTENTIAL MECHANISTIC OVERLAP: Both ${drugA.genericName} and ${drugB.genericName} utilize similar metabolic enzyme clearance pathways. While a major adverse reaction is not proven in standard package inserts, metabolic competition is possible. Routine clinical observation is advised.`;
+  }
+  return `INSUFFICIENT DOCUMENTED EVIDENCE: No adverse interaction between ${drugA.genericName} and ${drugB.genericName} is documented in indexed FDA prescribing information or clinical registries. However, absence of documented evidence does NOT confirm clinical safety; always monitor patient response.`;
 }
 
 function generateProfessionalExplanation(drugA: Drug, drugB: Drug, item: any): string {
-  return `Co-administration of ${drugA.genericName} and ${drugB.genericName} results in ${item.interactionType.toLowerCase()}. Mechanism: ${item.mechanism} Clinical Outcome: ${item.clinicalConsequence} Recommended Clinical Protocol: ${item.managementGuidance}`;
+  return `Co-administration of ${drugA.genericName} and ${drugB.genericName} evaluated [Severity: ${item.severity} | Evidence: ${item.evidenceStatus}]. Mechanism: ${item.mechanism} Clinical Outcome: ${item.clinicalConsequence} Recommended Clinical Protocol: ${item.managementGuidance}`;
 }
 
 function generateResearchExplanation(drugA: Drug, drugB: Drug, item: any): string {

@@ -5,6 +5,7 @@ import openfdaHandler from './api/openfda';
 import pubmedHandler from './api/pubmed';
 import healthHandler from './api/health';
 import rxnormHandler from './api/rxnorm';
+import openalexHandler from './api/openalex';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -33,6 +34,9 @@ export default defineConfig(({ mode }) => {
             }
             if (urlPath === '/api/rxnorm') {
               return rxnormHandler(req, res);
+            }
+            if (urlPath === '/api/openalex') {
+              return openalexHandler(req, res);
             }
             next();
           });

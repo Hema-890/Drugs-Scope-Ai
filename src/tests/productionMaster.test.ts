@@ -1,9 +1,14 @@
 import assert from 'node:assert';
+import http from 'node:http';
 import { createClient } from '@supabase/supabase-js';
 import jsPDF from 'jspdf';
 import { runMedicineAnalysis } from '../services/analysisEngine';
 import { fetchAndParsePdbCoordinates } from '../services/rcsbPdbApi';
 import { Drug } from '../types';
+import openfdaHandler from '../../api/openfda';
+import pubmedHandler from '../../api/pubmed';
+import rxnormHandler from '../../api/rxnorm';
+import healthHandler from '../../api/health';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://kfdntklvvvorbgatyqcg.supabase.co';
 const SUPABASE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
@@ -12,6 +17,29 @@ async function runProductionMasterSuite() {
   console.log('🔬 ====================================================================');
   console.log('DRUG SCOPE AI 10.0 — PRODUCTION MASTER INTEGRATION TEST SUITE');
   console.log('====================================================================\n');
+
+  let testServer: http.Server | null = null;
+  try {
+    const probe = await fetch('http://127.0.0.1:3000/api/health', { signal: AbortSignal.timeout(500) });
+    if (!probe.ok) throw new Error('Not running');
+  } catch {
+    testServer = http.createServer((req, res) => {
+      const urlPath = (req.url || '').split('?')[0];
+      if (urlPath === '/api/health') return healthHandler(req, res);
+      if (urlPath === '/api/openfda') return openfdaHandler(req, res);
+      if (urlPath === '/api/pubmed') return pubmedHandler(req, res);
+      if (urlPath === '/api/rxnorm') return rxnormHandler(req, res);
+      res.statusCode = 404;
+      res.end('Not Found');
+    });
+    await new Promise<void>((resolve, reject) => {
+      testServer!.listen(3000, '127.0.0.1', () => {
+        console.log('  🌐 Test API Server listening on http://127.0.0.1:3000');
+        resolve();
+      });
+      testServer!.on('error', reject);
+    });
+  }
 
   let passed = 0;
   let failed = 0;
@@ -213,6 +241,10 @@ async function runProductionMasterSuite() {
   console.log('\n====================================================================');
   console.log(`PRODUCTION MASTER SUITE RESULTS: ${passed} Passed, ${failed} Failed`);
   console.log('====================================================================\n');
+
+  if (testServer) {
+    testServer.close();
+  }
 
   if (failed > 0) {
     process.exit(1);

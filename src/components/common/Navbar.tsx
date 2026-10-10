@@ -9,8 +9,11 @@ import {
   Mic,
   Search,
   Sparkles,
-  User
+  User,
+  Globe
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../../services/medicalTranslationEngine';
 
 interface NavbarProps {
   mode: DatasetMode;
@@ -47,6 +50,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     .join('')
     .slice(0, 2)
     .toUpperCase() || 'DR';
+
+  const { i18n } = useTranslation();
+  const currentLang = (i18n.language?.slice(0, 2) as SupportedLanguage) || 'en';
+
+  const handleLanguageChange = (langCode: SupportedLanguage) => {
+    i18n.changeLanguage(langCode);
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full h-[68px] bg-[#070B14]/95 backdrop-blur-xl border-b border-white/[0.08] px-4 lg:px-8 flex items-center justify-between transition-all">
@@ -184,6 +194,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </>
         )}
+
+        {/* Trilingual Language Selector (English, Telugu, Hindi) */}
+        <div className="flex items-center bg-[#101827]/90 border border-white/10 rounded-xl p-1 gap-1">
+          <Globe className="w-3.5 h-3.5 text-[#37D6E6] ml-1.5 hidden sm:block shrink-0" />
+          {SUPPORTED_LANGUAGES.map((lang) => {
+            const isActive = currentLang === lang.code;
+            return (
+              <button
+                key={lang.code}
+                type="button"
+                onClick={() => handleLanguageChange(lang.code)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-gradient-to-r from-[#24D8ED] to-[#9475FF] text-[#070B14] font-bold shadow-sm'
+                    : 'text-[#A6B5CB] hover:text-white hover:bg-white/5'
+                }`}
+                title={`Switch to ${lang.name} (${lang.nativeName})`}
+              >
+                <span>{lang.nativeName}</span>
+              </button>
+            );
+          })}
+        </div>
 
         {/* Live Authentication Controls */}
         {isAuthenticated ? (

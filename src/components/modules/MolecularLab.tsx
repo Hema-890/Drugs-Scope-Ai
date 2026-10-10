@@ -50,6 +50,59 @@ interface StructureItem {
 }
 
 const STRUCTURE_CATALOG: Record<string, StructureItem> = {
+  '7TLL': {
+    pdbId: '7TLL',
+    title: 'Crystal Structure of SARS-CoV-2 Main Protease (Mpro) in Complex with Nirmatrelvir (PF-07321332)',
+    shortName: 'Mpro : Nirmatrelvir',
+    category: 'Protein-Ligand',
+    method: 'X-ray diffraction',
+    resolution: '1.60 Å',
+    organism: 'SARS-CoV-2',
+    releaseDate: '2021-12-16',
+    authors: 'Owen D. et al. (Pfizer)',
+    ligand: {
+      name: 'Nirmatrelvir (4WI)',
+      type: 'Peptidomimetic Protease Inhibitor',
+      formula: 'C23H32F3N5O4',
+      weight: '499.53 g/mol',
+      bindingMode: 'Covalent Adduct (Cys145:SG)',
+      affinity: 'Ki = 3.1 nM',
+      drugLikeness: 'Yes (Paxlovid active component)'
+    },
+    interactions: [
+      { residue: 'Cys145', type: 'Covalent thioimidate bond', distance: '1.76 Å', dotColor: '#F16D7B' },
+      { residue: 'His163', type: 'Hydrogen bond (S1 pocket)', distance: '2.78 Å', dotColor: '#24D8ED' },
+      { residue: 'His164', type: 'Backbone hydrogen bond', distance: '2.82 Å', dotColor: '#24D8ED' },
+      { residue: 'Glu166', type: 'Subsite anchor H-bond', distance: '2.83 Å', dotColor: '#24D8ED' },
+      { residue: 'Glu166', type: 'Carboxylate hydrogen bond', distance: '3.14 Å', dotColor: '#31CAB6' }
+    ]
+  },
+  '6WVR': {
+    pdbId: '6WVR',
+    title: 'Structure of Human Vitamin K Epoxide Reductase (VKORC1) in complex with Warfarin',
+    shortName: 'VKORC1 : Warfarin',
+    category: 'Protein-Ligand',
+    method: 'Cryo-EM',
+    resolution: '2.8 Å',
+    organism: 'Homo sapiens',
+    releaseDate: '2020-04-08',
+    authors: 'Liu S. et al.',
+    ligand: {
+      name: 'Warfarin (WAF)',
+      type: '4-Hydroxycoumarin Anticoagulant',
+      formula: 'C19H16O4',
+      weight: '308.33 g/mol',
+      bindingMode: 'Active site CXXC obstruction',
+      affinity: 'Kd = 1.2 µM',
+      drugLikeness: 'Yes (0 violations)'
+    },
+    interactions: [
+      { residue: 'Cys132', type: 'Active site obstruction', distance: '2.9 Å', dotColor: '#F16D7B' },
+      { residue: 'Cys135', type: 'Catalytic triad proximity', distance: '3.1 Å', dotColor: '#24D8ED' },
+      { residue: 'Tyr139', type: 'Aromatic π-stacking', distance: '3.6 Å', dotColor: '#9475FF' },
+      { residue: 'Phe55', type: 'Hydrophobic clamp', distance: '3.4 Å', dotColor: '#31CAB6' }
+    ]
+  },
   '7K3N': {
     pdbId: '7K3N',
     title: 'SARS-CoV-2 main protease in complex with an inhibitor N3',
@@ -131,26 +184,26 @@ const STRUCTURE_CATALOG: Record<string, StructureItem> = {
   '6M0J': {
     pdbId: '6M0J',
     title: 'Crystal structure of SARS-CoV-2 spike receptor-binding domain bound with ACE2',
-    shortName: 'PD-1 (Human)',
+    shortName: 'Spike : ACE2 Interface',
     category: 'Protein-Protein',
     method: 'X-ray diffraction',
     resolution: '2.45 Å',
-    organism: 'Homo sapiens',
+    organism: 'SARS-CoV-2 / Homo sapiens',
     releaseDate: '2020-03-18',
     authors: 'Lan J. et al.',
     ligand: {
-      name: 'Nivolumab Fab heavy-chain',
-      type: 'Monoclonal antibody interface',
+      name: 'ACE2 Peptidase Interface',
+      type: 'Receptor Interface',
       formula: 'Macromolecular',
-      weight: '146 kDa',
-      bindingMode: 'BC Loop Blocking',
-      affinity: 'Kd = 2.6 nM',
-      drugLikeness: 'Biologic (Not applicable)'
+      weight: '85 kDa',
+      bindingMode: 'RBD Contact Epitope',
+      affinity: 'Kd = 15 nM',
+      drugLikeness: 'Host Receptor Target'
     },
     interactions: [
-      { residue: 'Lys78', type: 'Salt bridge', distance: '2.8 Å', dotColor: '#24D8ED' },
-      { residue: 'Asn66', type: 'Hydrogen bond network', distance: '3.0 Å', dotColor: '#24D8ED' },
-      { residue: 'Pro69', type: 'Hydrophobic contact', distance: '3.7 Å', dotColor: '#31CAB6' }
+      { residue: 'Gln493', type: 'Interface H-bond to Glu35', distance: '2.7 Å', dotColor: '#24D8ED' },
+      { residue: 'Tyr505', type: 'Hydrogen bond to Glu37', distance: '2.9 Å', dotColor: '#24D8ED' },
+      { residue: 'Lys417', type: 'Salt bridge to Asp30', distance: '2.8 Å', dotColor: '#31CAB6' }
     ]
   },
   '2AZ5': {
@@ -184,9 +237,9 @@ interface MolecularLabProps {
   initialPdbId?: string;
 }
 
-export const MolecularLab: React.FC<MolecularLabProps> = ({ initialPdbId = '7K3N' }) => {
+export const MolecularLab: React.FC<MolecularLabProps> = ({ initialPdbId = '7TLL' }) => {
   const [catalog, setCatalog] = useState<Record<string, StructureItem>>(STRUCTURE_CATALOG);
-  const [selectedPdbId, setSelectedPdbId] = useState<string>(initialPdbId || '7K3N');
+  const [selectedPdbId, setSelectedPdbId] = useState<string>(initialPdbId || '7TLL');
   const [activeTab, setActiveTab] = useState<'structures' | 'targets' | 'projects'>('structures');
   const [rightInspectorTab, setRightInspectorTab] = useState<'structure' | 'interactions' | 'analytics' | 'ai-insights'>('structure');
   const [searchQuery, setSearchQuery] = useState('');

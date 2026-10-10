@@ -47,7 +47,7 @@ export interface PairwiseInteraction {
   drugAName: string;
   drugBId: string;
   drugBName: string;
-  severity: 'Contraindicated' | 'Major' | 'Moderate' | 'Minor' | 'Theoretical';
+  severity: 'Contraindicated' | 'Major' | 'Moderate' | 'Minor' | 'Potential mechanism' | 'Insufficient evidence' | 'Theoretical';
   evidenceStatus: 'Documented' | 'Predicted' | 'Simulated' | 'Uncertain' | 'Evidence Gap';
   interactionType: 'Pharmacokinetic (CYP Competition)' | 'Pharmacodynamic (Additive Toxicity)' | 'Transporter Inhibition' | 'Receptor Antagonism' | 'QT Prolongation';
   mechanism: string;
@@ -184,7 +184,9 @@ export interface AnalysisFinding {
   drugAName: string;
   drugBId: string;
   drugBName: string;
-  severity: 'Contraindicated' | 'Major' | 'Moderate' | 'Minor' | 'Theoretical';
+  severity: 'Contraindicated' | 'Major' | 'Moderate' | 'Minor' | 'Potential mechanism' | 'Insufficient evidence' | 'Theoretical';
+  provenanceStatus?: string;
+  sourceRecordId?: string;
   evidenceStatus: 'Documented' | 'Predicted' | 'Simulated' | 'Uncertain' | 'Evidence Gap';
   interactionType: string;
   mechanism: string;

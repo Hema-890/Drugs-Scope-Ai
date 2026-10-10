@@ -2,6 +2,18 @@ import { ProteinStructure } from '../types';
 
 export const PROTEIN_STRUCTURES: ProteinStructure[] = [
   {
+    pdbId: '7TLL',
+    title: 'Crystal Structure of SARS-CoV-2 Main Protease (Mpro) in Complex with Nirmatrelvir (PF-07321332)',
+    targetSymbol: 'Mpro / 3CLpro',
+    method: 'X-RAY DIFFRACTION',
+    resolution: 1.6,
+    chains: ['A', 'B'],
+    ligandIds: ['4WI', 'DMS'],
+    rcsbUrl: 'https://www.rcsb.org/structure/7TLL',
+    atomCount: 5078,
+    experimentalNotes: 'High-resolution 1.60 Å crystal structure capturing Nirmatrelvir covalently bound to catalytic dyad residue Cys145 (1.76 Å S-C thioimidate bond) and anchored via S1-S4 subpocket hydrogen bonds (His163, His164, Glu166).'
+  },
+  {
     pdbId: '6WVR',
     title: 'Structure of Human Vitamin K Epoxide Reductase (VKORC1) in complex with Warfarin',
     targetSymbol: 'VKORC1',

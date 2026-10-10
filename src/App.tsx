@@ -26,6 +26,7 @@ import { EvidenceTimeMachine } from './components/differentiators/EvidenceTimeMa
 import { EvidenceGapAtlas } from './components/differentiators/EvidenceGapAtlas';
 import { MolecularStoryboard } from './components/differentiators/MolecularStoryboard';
 import { MedicineAnalysisWorkspace } from './components/modules/MedicineAnalysisWorkspace';
+import { DrugInteractionAnalyzer } from './components/modules/DrugInteractionAnalyzer';
 import { AnalysisResultsDashboard } from './components/modules/AnalysisResultsDashboard';
 import { ScientificDossierReport } from './components/reports/ScientificDossierReport';
 import { AuthModal } from './components/common/AuthModal';
@@ -96,7 +97,7 @@ export function App() {
 
   // Cross-module active items
   const [targetDrug, setTargetDrug] = useState<Drug | null>(null);
-  const [targetPdbId, setTargetPdbId] = useState<string>('6WVR');
+  const [targetPdbId, setTargetPdbId] = useState<string>('7TLL');
   const [targetBiologicalTarget, setTargetBiologicalTarget] = useState<BiologicalTarget | null>(null);
   const [activeAnalysisSessionId, setActiveAnalysisSessionId] = useState<string | null>(null);
   const [activeReportSession, setActiveReportSession] = useState<AnalysisSession | null>(null);
@@ -125,6 +126,15 @@ export function App() {
       case 'command-center':
         return <CommandCenter mode={mode} onNavigate={(mod) => handleNavigate(mod)} />;
       case 'analyze':
+        return (
+          <DrugInteractionAnalyzer
+            onNavigateTo3D={(pdbId) => {
+              setTargetPdbId(pdbId);
+              setActiveModule('molecular-lab');
+            }}
+          />
+        );
+      case 'multi-drug-workspace':
         return (
           <MedicineAnalysisWorkspace
             onAnalysisComplete={(sessionId) => {

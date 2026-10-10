@@ -5,11 +5,12 @@ const os = require('os');
 const { Client } = require('pg');
 
 async function applyMigration() {
+  const targetFile = process.argv[2] || '20241010000000_drug_scope_core_schema.sql';
   console.log('🚀 Drug Scope AI — PostgreSQL Migration Runner');
   console.log('Target Project: kfdntklvvvorbgatyqcg');
-  console.log('Migration File: supabase/migrations/20241010000000_drug_scope_core_schema.sql\n');
+  console.log(`Migration File: supabase/migrations/${targetFile}\n`);
 
-  const migrationPath = path.resolve(__dirname, '../supabase/migrations/20241010000000_drug_scope_core_schema.sql');
+  const migrationPath = path.resolve(__dirname, '../supabase/migrations', targetFile);
   if (!fs.existsSync(migrationPath)) {
     console.error('❌ Migration file not found at:', migrationPath);
     process.exit(1);
@@ -71,7 +72,7 @@ async function applyMigration() {
         user: cfg.user,
         password: dbPassword,
         database: 'postgres',
-        ssl: { rejectUnauthorized: false },
+        ssl: { rejectUnauthorized: true },
         connectionTimeoutMillis: 10000
       });
 
@@ -112,7 +113,7 @@ async function applyMigration() {
           'Authorization': `Bearer ${mcpToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ query: migrationSql })
+        body: JSON.stringify({ query: migrationSql, read_only: false })
       });
 
       if (response.ok) {

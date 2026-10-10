@@ -14,6 +14,11 @@ export interface PdbAtom {
   isHetatm: boolean;
 }
 
+export interface SecondaryStructureInfo {
+  helices: { initSeq: number; endSeq: number }[];
+  sheets: { initSeq: number; endSeq: number }[];
+}
+
 export interface PdbParsedModel {
   pdbId: string;
   atoms: PdbAtom[];
@@ -23,6 +28,8 @@ export interface PdbParsedModel {
   residueCount: number;
   isExperimental: boolean;
   sourceLabel: string;
+  secondaryStructure?: SecondaryStructureInfo;
+  ligandAtoms?: PdbAtom[];
 }
 
 export async function fetchPdbMetadata(pdbId: string): Promise<ProteinStructure> {
@@ -96,10 +103,13 @@ export async function fetchAndParsePdbCoordinates(pdbId: string): Promise<PdbPar
   return generateDeterministicProteinModel(cleanId);
 }
 
+
 function parsePdbText(pdbId: string, text: string): PdbParsedModel {
   const lines = text.split('\n');
   const atoms: PdbAtom[] = [];
   const chainsSet = new Set<string>();
+  const helices: { initSeq: number; endSeq: number }[] = [];
+  const sheets: { initSeq: number; endSeq: number }[] = [];
 
   let minX = Infinity, maxX = -Infinity;
   let minY = Infinity, maxY = -Infinity;
@@ -107,12 +117,32 @@ function parsePdbText(pdbId: string, text: string): PdbParsedModel {
   let sumX = 0, sumY = 0, sumZ = 0;
 
   for (const line of lines) {
+    if (line.startsWith('HELIX')) {
+      const initSeq = parseInt(line.substring(21, 25).trim());
+      const endSeq = parseInt(line.substring(33, 37).trim());
+      if (!isNaN(initSeq) && !isNaN(endSeq)) {
+        helices.push({ initSeq, endSeq });
+      }
+      continue;
+    }
+    if (line.startsWith('SHEET')) {
+      const initSeq = parseInt(line.substring(22, 26).trim());
+      const endSeq = parseInt(line.substring(33, 37).trim());
+      if (!isNaN(initSeq) && !isNaN(endSeq)) {
+        sheets.push({ initSeq, endSeq });
+      }
+      continue;
+    }
+
     const record = line.substring(0, 6).trim();
     if (record === 'ATOM' || record === 'HETATM') {
+      const resName = line.substring(17, 20).trim();
+      // Skip solvent water to focus on protein macromolecule and authentic bound ligands
+      if (resName === 'HOH' || resName === 'WAT') continue;
+
       const isHetatm = record === 'HETATM';
       const serial = parseInt(line.substring(6, 11).trim()) || 0;
       const name = line.substring(12, 16).trim();
-      const resName = line.substring(17, 20).trim();
       const chainID = line.substring(21, 22).trim() || 'A';
       const resSeq = parseInt(line.substring(22, 26).trim()) || 0;
       const x = parseFloat(line.substring(30, 38).trim()) || 0;
@@ -129,7 +159,8 @@ function parsePdbText(pdbId: string, text: string): PdbParsedModel {
       sumX += x; sumY += y; sumZ += z;
 
       atoms.push({ serial, name, resName, chainID, resSeq, x, y, z, element, isHetatm });
-      if (atoms.length >= 1200) break; // Performance optimization for fast WebGL frame rate
+      // Keep safety limit reasonable for WebGL (6000 non-water atoms)
+      if (atoms.length >= 6000) break;
     }
   }
 
@@ -144,9 +175,11 @@ function parsePdbText(pdbId: string, text: string): PdbParsedModel {
     center: [centerX, centerY, centerZ],
     bounds: { minX, maxX, minY, maxY, minZ, maxZ },
     chains: Array.from(chainsSet),
-    residueCount: new Set(atoms.map((a) => `${a.chainID}-${a.resSeq}`)).size,
+    residueCount: new Set(atoms.filter(a => !a.isHetatm).map((a) => `${a.chainID}-${a.resSeq}`)).size,
     isExperimental: true,
-    sourceLabel: 'RCSB Protein Data Bank (Experimental Archive)'
+    sourceLabel: 'RCSB Protein Data Bank (Experimental Archive)',
+    secondaryStructure: { helices, sheets },
+    ligandAtoms: atoms.filter(a => a.isHetatm)
   };
 }
 

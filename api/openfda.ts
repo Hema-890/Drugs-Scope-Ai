@@ -12,6 +12,7 @@ function getAdminClient() {
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   const urlObj = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
   const drug = urlObj.searchParams.get('drug') || urlObj.searchParams.get('q');
+  const endpoint = urlObj.searchParams.get('endpoint') || urlObj.searchParams.get('type') || 'label';
 
   res.setHeader('Content-Type', 'application/json');
 
@@ -22,6 +23,79 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   const cleanDrug = drug.trim().toLowerCase();
+  const apiKey = process.env.OPENFDA_API_KEY;
+  const keyParam = apiKey ? `&api_key=${encodeURIComponent(apiKey)}` : '';
+
+  // ---------------------------------------------------------
+  // A. FAERS ADVERSE EVENT REPORTS & REACTION FREQUENCIES
+  // ---------------------------------------------------------
+  if (endpoint === 'events' || endpoint === 'adverse-events') {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      // Query top adverse reaction MedDRA terms
+      const reactionUrl = `https://api.fda.gov/drug/event.json?search=patient.drug.medicinalproduct:"${encodeURIComponent(cleanDrug)}"&count=patient.reaction.reactionmeddrapt.exact&limit=15${keyParam}`;
+      const reactionRes = await fetch(reactionUrl, { signal: controller.signal });
+
+      let topReactions: Array<{ term: string; count: number }> = [];
+      if (reactionRes.ok) {
+        const reactionData = await reactionRes.json();
+        topReactions = (reactionData.results || []).map((r: any) => ({
+          term: r.term,
+          count: r.count
+        }));
+      }
+
+      // Query sample individual event reports
+      const sampleEventsUrl = `https://api.fda.gov/drug/event.json?search=patient.drug.medicinalproduct:"${encodeURIComponent(cleanDrug)}"&limit=5${keyParam}`;
+      const sampleRes = await fetch(sampleEventsUrl, { signal: controller.signal });
+      clearTimeout(timeout);
+
+      let sampleReports: any[] = [];
+      let totalReports = 0;
+      if (sampleRes.ok) {
+        const sampleData = await sampleRes.json();
+        totalReports = sampleData.meta?.results?.total || 0;
+        sampleReports = (sampleData.results || []).map((ev: any) => ({
+          safetyReportId: ev.safetyreportid,
+          receiveDate: ev.receivedate,
+          serious: ev.serious === '1',
+          seriousnessDeath: ev.seriousnessdeath === '1',
+          seriousnessHospitalization: ev.seriousnesshospitalization === '1',
+          patientOnsetAge: ev.patient?.patientonsetage || null,
+          patientSex: ev.patient?.patientsex === '1' ? 'Male' : ev.patient?.patientsex === '2' ? 'Female' : 'Unknown',
+          reactions: (ev.patient?.reaction || []).map((r: any) => r.reactionmeddrapt),
+          concomitantDrugs: (ev.patient?.drug || []).map((d: any) => d.medicinalproduct).filter(Boolean)
+        }));
+      }
+
+      res.statusCode = 200;
+      res.end(
+        JSON.stringify({
+          success: true,
+          source: 'openFDA FAERS Spontaneous Adverse Event Reporting System',
+          drug: cleanDrug,
+          totalReports,
+          topReactions,
+          recentReports: sampleReports,
+          disclaimer: 'Spontaneous adverse event reports submitted to FDA do not establish clinical causality or true incidence rates.'
+        })
+      );
+      return;
+    } catch (evErr: any) {
+      res.statusCode = 502;
+      res.end(
+        JSON.stringify({
+          success: false,
+          error: 'Failed to retrieve FDA adverse events',
+          details: evErr?.message
+        })
+      );
+      return;
+    }
+  }
+
   const adminClient = getAdminClient();
 
   // 1. Check local PostgreSQL cache first
@@ -73,8 +147,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   // 2. Query upstream official openFDA API
-  const apiKey = process.env.OPENFDA_API_KEY;
-  const keyParam = apiKey ? `&api_key=${encodeURIComponent(apiKey)}` : '';
 
   try {
     const searchQuery = `(openfda.generic_name:"${cleanDrug}"+openfda.brand_name:"${cleanDrug}"+openfda.substance_name:"${cleanDrug}")`;
