@@ -56,6 +56,8 @@ import {
   MEDICAL_GLOSSARY
 } from '../../services/medicalTranslationEngine';
 import { jsPDF } from 'jspdf';
+import { EvidenceMolecularPanel } from './EvidenceMolecularPanel';
+import { deriveMolecularPayload } from '../../services/molecularContextEngine';
 
 interface DrugInteractionAnalyzerProps {
   onNavigateTo3D?: (pdbId: string) => void;
@@ -101,6 +103,21 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
   // Audio Voice Engine State
   const [audioState, setAudioState] = useState<AudioPlaybackState>(audioVoiceEngine.getState());
   const [selectedAudioSection, setSelectedAudioSection] = useState<'all' | 'overview' | 'interactions' | 'risks' | 'warnings'>('all');
+
+  // Derive real 3D molecular payload matching current report context
+  const currentDrugNames = useMemo(() => {
+    if (analysisOutput?.mode === 'SINGLE_DRUG') {
+      return [analysisOutput.dossier.medicine.genericName || medicines[0]?.name || 'Paracetamol'];
+    }
+    if (analysisOutput?.mode === 'MULTI_DRUG') {
+      return analysisOutput.regimen.medicines.map((m) => m.genericName || m.inputQuery);
+    }
+    return medicines.map((m) => m.name).filter(Boolean);
+  }, [analysisOutput, medicines]);
+
+  const molecularPayload = useMemo(() => {
+    return deriveMolecularPayload(currentDrugNames.length > 0 ? currentDrugNames : ['Warfarin', 'Aspirin']);
+  }, [currentDrugNames]);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -159,7 +176,6 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
     if (rawNames.length === 0 || isAnalyzing) return;
 
     setIsAnalyzing(true);
-    setAnalysisOutput(null);
     audioVoiceEngine.stop();
 
     try {
@@ -371,7 +387,7 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
   };
 
   return (
-    <div ref={containerRef} className="space-y-8 max-w-6xl mx-auto pb-20">
+    <div ref={containerRef} className="space-y-8 max-w-[1520px] mx-auto px-4 sm:px-6 pb-24">
       {/* ==================================================================== */}
       {/* HEADER BANNER WITH TRILINGUAL SWITCHER & AUTHENTIC BADGES             */}
       {/* ==================================================================== */}
@@ -702,7 +718,7 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
       {/* ==================================================================== */}
       {/* REPORT OUTPUT AREA                                                    */}
       {/* ==================================================================== */}
-      {analysisOutput && (
+      {analysisOutput ? (
         <div className="space-y-6">
           {/* Top Bar: Language & Export Controls */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-[#0B1120] border border-white/10">
@@ -747,10 +763,14 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
             </div>
           </div>
 
-          {/* ---------------------------------------------------------------- */}
-          {/* SCENARIO A: SINGLE MEDICINE CLINICAL DOSSIER                     */}
-          {/* ---------------------------------------------------------------- */}
-          {analysisOutput.mode === 'SINGLE_DRUG' && (
+          {/* Main Two-Panel Responsive Analysis Workspace: Left 58% Report / Right 42% Sticky 3D Panel */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Left Column: Comprehensive Evidence Report Stream (58% width) */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* ---------------------------------------------------------------- */}
+              {/* SCENARIO A: SINGLE MEDICINE CLINICAL DOSSIER                     */}
+              {/* ---------------------------------------------------------------- */}
+              {analysisOutput.mode === 'SINGLE_DRUG' && (
             <div className="space-y-6">
               {analysisOutput.dossier.status === 'UNRECOGNIZED' ? (
                 <div className="p-6 rounded-3xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2">
@@ -943,8 +963,8 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
                 </p>
               </div>
 
-              {/* Pairwise Interactions Cards Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Pairwise Interactions Cards */}
+              <div className="space-y-6">
                 {analysisOutput.regimen.pairwiseInteractions.map((pair, pIdx) => {
                   const drug1Name = showOriginalEnglish
                     ? pair.drug1.genericName
@@ -1040,6 +1060,94 @@ export const DrugInteractionAnalyzer: React.FC<DrugInteractionAnalyzerProps> = (
               </div>
             </div>
           )}
+        </div>
+
+        {/* Right Column: Sticky Evidence-Linked 3D Molecular Intelligence Panel (42% width) */}
+        <div className="lg:col-span-5 sticky top-20 space-y-4">
+          <EvidenceMolecularPanel
+            payload={molecularPayload}
+            onOpenLab={onNavigateTo3D}
+          />
+        </div>
+      </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left Column: Loading Skeleton or Workspace Readiness Card (58% width) */}
+          <div className="lg:col-span-7 space-y-6">
+            {isAnalyzing ? (
+              <div className="glass-panel p-6 lg:p-8 rounded-3xl border border-[#37D6E6]/20 bg-[#0B1120]/80 space-y-6 animate-pulse">
+                <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                  <div className="space-y-2">
+                    <div className="h-6 w-48 bg-white/10 rounded-lg" />
+                    <div className="h-4 w-32 bg-white/5 rounded-lg" />
+                  </div>
+                  <div className="h-8 w-24 bg-[#37D6E6]/10 rounded-xl" />
+                </div>
+                <div className="space-y-3">
+                  <div className="h-4 w-full bg-white/10 rounded" />
+                  <div className="h-4 w-5/6 bg-white/10 rounded" />
+                  <div className="h-4 w-4/6 bg-white/5 rounded" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="h-24 bg-white/5 rounded-2xl border border-white/5" />
+                  <div className="h-24 bg-white/5 rounded-2xl border border-white/5" />
+                </div>
+                <div className="h-32 bg-white/5 rounded-2xl border border-white/5" />
+              </div>
+            ) : (
+              <div className="glass-panel p-6 lg:p-8 rounded-3xl border border-white/10 bg-[#0B1120]/80 space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-[#37D6E6]/10 border border-[#37D6E6]/30 text-[#37D6E6]">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white font-display">
+                      Evidence-Based Clinical Intelligence Ready
+                    </h3>
+                    <p className="text-xs text-[#A7B5C9]">
+                      Enter active pharmaceutical ingredients or brand names above to query live RxNorm, openFDA, and PubMed.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[#070B14] border border-white/5 space-y-3 text-xs text-[#A7B5C9]">
+                  <div className="font-semibold text-white">Recommended Clinical Evaluation Regimens:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { name: 'Warfarin + Aspirin', desc: 'Synergistic Hemorrhage Risk' },
+                      { name: 'Warfarin + Amiodarone', desc: 'CYP2C9 Clearance Blockade' },
+                      { name: 'Clopidogrel + Omeprazole', desc: 'CYP2C19 Bioactivation Inhibition' },
+                      { name: 'Metformin', desc: 'Single-Drug Mitochondrial Profile' },
+                      { name: 'Paracetamol', desc: 'Single-Drug NAPQI Peroxidase Profile' }
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          const drugs = preset.name.split(' + ');
+                          handleSelectPreset(drugs);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Zap className="w-3 h-3 text-[#37D6E6]" />
+                        <span>{preset.name}</span>
+                        <span className="text-[10px] text-[#A7B5C9] hidden sm:inline">({preset.desc})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Sticky Evidence-Linked 3D Molecular Intelligence Panel (42% width) */}
+          <div className="lg:col-span-5 sticky top-20 space-y-4">
+            <EvidenceMolecularPanel
+              payload={molecularPayload}
+              onOpenLab={onNavigateTo3D}
+            />
+          </div>
         </div>
       )}
 
